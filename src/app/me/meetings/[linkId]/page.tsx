@@ -64,6 +64,7 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
           ) : null}
         </div>
         <p className="fine-print">{link.sharedWithCoach ? `${coach} can see the feedback below, never anyone else's words.` : `Only you see this feedback. ${coach} sees it only if you share it.`}</p>
+        <Link className="text-body" href={`/me/coaching?action=${link.commitmentId}`}>Get coaching on this action</Link>
       </div>
 
       {series && checks.length ? (

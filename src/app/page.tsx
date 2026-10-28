@@ -29,6 +29,15 @@ const GROUPS: Array<{ title: string; screens: Array<[string, string, string, str
     ],
   },
   {
+    title: 'Coaching guidance with BiTSy (not on the canvas yet: for design review)',
+    screens: [
+      ['CG', 'Choose an action to get coaching on', '/me/coaching', 'coachee'],
+      ['CG', 'Start a conversation: coach, first message, what the coach is told', '/me/coaching?action=c-priya-4', 'coachee'],
+      ['CG', 'Proposed actions and shared conversations on the coachee profile', '/coach/coachees/priya', 'coach'],
+      ['CG', 'Elena (Halden): coaching on a delegation action', '/me/coaching', 'coachee-companion'],
+    ],
+  },
+  {
     title: 'Coach workspace',
     screens: [
       ['2', 'Sessions', '/coach/sessions', 'coach'],

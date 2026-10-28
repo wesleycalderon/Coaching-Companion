@@ -199,6 +199,33 @@ Open `/` for the screen index: every canvas artboard, its route, and which view 
 - Against a mock of the Teams message service: the bot's hello reply, the proactive check-in card for Elena, "Tried it" redrawing the card with the reflection form, an empty reflection rejected with a message, a saved reflection plus the "Nice work" reply delivered to Teams, and a tunnelled request refused.
 - Not yet checked in Agents Playground or real Teams: running the Playground needs your OK, and real Teams needs a tenant.
 
+## Coaching guidance with BiTSy (after milestone 7)
+
+- Coachees can talk an action through with one of BiTSy's AI coaches (the `bitsy-google-adk` agents) from **Coaching guidance** (`/me/coaching`), a "Get coaching" link next to each action in the recap, and the linked-meeting page. The app suggests a coach from the action's wording (for example, Listening for "ask curiosity questions", Delegating for a handover, Prioritising for an action set aside for lack of time); the coachee can pick another.
+- BiTSy runs the coaching on its own server through its REST API (`src/lib/coaching/bitsy.ts`): its prompts and BTS coaching IP never come into this app, matching how BiTSy's MCP server works. The app sends a short brief with the first message (name, role, the action, its status, the latest reflection and work-meeting feedback). The coachee sees exactly what the coach will be told before starting.
+- Conversations are private to the coachee unless shared. When one ends, BiTSy's wrap-up summary (topics and insights) is shown, labelled as AI.
+- New actions follow the coach-approval rule: the coachee writes a proposal in their own words, and the coach approves or declines it on the coachee's profile. Approval adds it to the latest session that has taken place, and check-ins start.
+- Sample mode: without BiTSy settings, or with `COACHING_SAMPLE=true`, coaches reply with pre-written, generic sample answers, labelled "Sample output". Nothing is sent.
+- Audit events: conversation started (and what was sent), conversation shared or unshared, action proposed, approved or declined.
+- New tables: `CoachingConversation` and `CoachingTurn`. No new dependencies.
+
+### Checked
+
+- Live against BiTSy staging (test account in `.env`): Priya with the Listening coach (start, reply, end with wrap-up summary, propose, share, Daniel approves); Elena with the Delegating coach. Sample mode with the Prioritising coach. New pages fit at 375 px; no server errors.
+
+### Stubbed or not yet built
+
+- Every coachee's conversations run under one BiTSy account (the one in `.env`), so BiTSy's long-term memory for that account mixes the demo coachees. Production needs a BiTSy account per coachee and service-to-service auth. STUB: BTS Studio engineering.
+- No client setting yet to turn coaching guidance off, and no data-processing terms for what's sent to BiTSy and its memory service (Mem0).
+- Not in Slack or Teams yet: links from nudges and meeting feedback to coaching are a next step.
+- Replies aren't streamed; the coachee waits for the whole reply (BiTSy took 2 to 10 seconds in testing).
+
+### For the BiTSy team
+
+- With a shared account, the coach greeted Priya with the account holder's name; the brief now says "Please call me Priya", which fixed it.
+- The Delegating coach opened with its standard first question and didn't use the situation in the first message. Coaches could use the context they're given when a conversation starts with one.
+- BiTSy's wrap-up insights can describe the person ("Your awareness of this pattern is a leadership strength"). The prototype's rule is never to infer personality, so this needs a decision.
+
 ## Live API check (Sonnet 5.5, `ANTHROPIC_MODEL` in `.env`)
 
 - Amara's session 2 through the Zoom simulator: all five tasks (speaker roles, summary, actions, follow-up, practice feedback) returned valid output; no quote failed the transcript check, nothing was dropped, one client term was redacted. The uncertain "hand Kai the rota" action came back flagged for coach confirmation.

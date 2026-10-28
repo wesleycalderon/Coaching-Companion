@@ -818,7 +818,7 @@ audit.push(
 
 async function main() {
   // Clear in dependency order so the seed can run on an existing database.
-  for (const model of ['meetingOccurrence', 'meetingLink', 'managerNote', 'companionMessage', 'auditEvent', 'aiAnswer', 'sessionEvent', 'nextSessionPlan', 'practiceFeedback', 'languageMarker', 'coachNote', 'checkIn', 'commitment', 'summary', 'transcript', 'consent', 'session', 'goal', 'engagement', 'integration', 'rubric', 'user', 'client'] as const) {
+  for (const model of ['coachingTurn', 'coachingConversation', 'meetingOccurrence', 'meetingLink', 'managerNote', 'companionMessage', 'auditEvent', 'aiAnswer', 'sessionEvent', 'nextSessionPlan', 'practiceFeedback', 'languageMarker', 'coachNote', 'checkIn', 'commitment', 'summary', 'transcript', 'consent', 'session', 'goal', 'engagement', 'integration', 'rubric', 'user', 'client'] as const) {
     await (db as any)[model].deleteMany();
   }
   for (const c of CLIENTS) await db.client.create({ data: { ...c, redactionTerms: json(c.redactionTerms), nudgeDefaults: json(c.nudgeDefaults), featureFlags: json(c.featureFlags), activeRubricIds: json(c.activeRubricIds), mcpScopes: json(c.mcpScopes), createdAt: nextCreatedAt() } });

@@ -71,22 +71,23 @@ model User {
   slackUserId       String? // set when the companion first finds the person in Slack
   createdAt         DateTime  @default(now())
 
-  client             Client?            @relation(fields: [clientId], references: [id])
-  manager            User?              @relation("CoachManager", fields: [managerId], references: [id])
-  managedCoaches     User[]             @relation("CoachManager")
-  notesWritten       ManagerNote[]      @relation("NoteAuthor")
-  notesReceived      ManagerNote[]      @relation("NoteCoach")
-  coacheeEngagements Engagement[]       @relation("CoacheeEngagements")
-  coachEngagements   Engagement[]       @relation("CoachEngagements")
-  consents           Consent[]
-  coachNotes         CoachNote[]
-  languageMarkers    LanguageMarker[]
-  practiceFeedback   PracticeFeedback[]
-  auditEvents        AuditEvent[]
-  askedQuestions     AiAnswer[]
-  approvedSummaries  Summary[]
-  companionMessages  CompanionMessage[]
-  meetingLinks       MeetingLink[]
+  client                Client?                @relation(fields: [clientId], references: [id])
+  manager               User?                  @relation("CoachManager", fields: [managerId], references: [id])
+  managedCoaches        User[]                 @relation("CoachManager")
+  notesWritten          ManagerNote[]          @relation("NoteAuthor")
+  notesReceived         ManagerNote[]          @relation("NoteCoach")
+  coacheeEngagements    Engagement[]           @relation("CoacheeEngagements")
+  coachingConversations CoachingConversation[] @relation("CoachingConversations")
+  coachEngagements      Engagement[]           @relation("CoachEngagements")
+  consents              Consent[]
+  coachNotes            CoachNote[]
+  languageMarkers       LanguageMarker[]
+  practiceFeedback      PracticeFeedback[]
+  auditEvents           AuditEvent[]
+  askedQuestions        AiAnswer[]
+  approvedSummaries     Summary[]
+  companionMessages     CompanionMessage[]
+  meetingLinks          MeetingLink[]
 }
 
 model Engagement {
@@ -224,10 +225,11 @@ model Commitment {
   // checked quote), set when the coach approves that session. Counts toward follow-up.
   discussedAt            DateTime?
 
-  session      Session       @relation(fields: [sessionId], references: [id])
-  goal         Goal?         @relation(fields: [goalId], references: [id])
-  checkIns     CheckIn[]
-  meetingLinks MeetingLink[]
+  session               Session                @relation(fields: [sessionId], references: [id])
+  goal                  Goal?                  @relation(fields: [goalId], references: [id])
+  checkIns              CheckIn[]
+  meetingLinks          MeetingLink[]
+  coachingConversations CoachingConversation[]
 }
 
 model CheckIn {
@@ -473,4 +475,42 @@ model TeamsConversation {
   conversationId String
   serviceUrl     String
   updatedAt      DateTime @updatedAt
+}
+
+// Coaching guidance (after milestone 7): a conversation between the coachee and one of BiTSy's
+// coaching agents about an action. BiTSy runs the coaching; its prompts and BTS coaching IP stay
+// on the BiTSy server, and this app keeps the turns so the coachee can return to them.
+// Private to the coachee unless they share it. Synthetic data only.
+model CoachingConversation {
+  id                  String    @id
+  coacheeId           String
+  commitmentId        String?
+  agentName           String // a BiTSy agent id, e.g. listening_skills_coach
+  provider            String // bitsy | sample
+  bitsyConversationId String?
+  status              String // active | ended
+  startedAt           DateTime
+  endedAt             DateTime?
+  sharedWithCoach     Boolean   @default(false)
+  insights            Json? // BiTSy's wrap-up summary: { keyTopics: string[], insights: string[] }
+  // An action the coachee proposes after the conversation, in their own words. The coach
+  // approves it before it becomes one of their actions (the AI never adds actions).
+  proposedAction      String?
+  proposalStatus      String    @default("none") // none | proposed | approved | declined
+  proposalDecidedAt   DateTime?
+  createdCommitmentId String?
+
+  coachee    User           @relation("CoachingConversations", fields: [coacheeId], references: [id])
+  commitment Commitment?    @relation(fields: [commitmentId], references: [id])
+  turns      CoachingTurn[]
+}
+
+model CoachingTurn {
+  id             String   @id
+  conversationId String
+  role           String // coachee | coach | brief
+  text           String
+  createdAt      DateTime
+
+  conversation CoachingConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }

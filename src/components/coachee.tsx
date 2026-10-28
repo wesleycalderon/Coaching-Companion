@@ -15,6 +15,7 @@ export async function CoacheeShell({ userId, current, children }: { userId: stri
     { href: '/me/roadmap', label: 'Leadership Roadmap ↗' },
     { href: '/me/sessions', label: 'Past sessions' },
     { href: '/me/meetings', label: 'Linked meetings' },
+    { href: '/me/coaching', label: 'Coaching guidance' },
     { href: '/me/data', label: 'My data' },
   ];
   return (

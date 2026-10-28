@@ -73,6 +73,7 @@ export default async function RecapPage({ params }: { params: { sessionId: strin
                 <span className="participant-body basis-320">{c.ifThenText}</span>
                 <StatusBadge tone={b.tone} label={b.label} title={b.title} size="md" />
                 {c.status === 'not_started' ? <Link className="text-body" href="/preview/slack-set-aside">Update</Link> : null}
+                {c.approved && c.status !== 'habit' ? <Link className="text-body" href={`/me/coaching?action=${c.id}`} aria-label={`Get coaching on: ${c.title}`}>Get coaching</Link> : null}
               </div>
             );
           })}

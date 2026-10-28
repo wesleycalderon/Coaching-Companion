@@ -1,6 +1,10 @@
 import Link from 'next/link';
+import { ActionButton } from '@/components/admin-forms';
+import { CoachText } from '@/components/coach-text';
 import { allow, NotFoundCard, PageHead, SampleNote, WrongRole } from '@/components/ui';
 import { RoleBadge, StatusBadge } from '@/ds/components';
+import { coachById } from '@/lib/coaching/coaches';
+import { decideProposalAction } from '@/lib/coaching-actions';
 import { ATTEMPT_BADGE } from '@/lib/companion/view';
 import type { WorkMeetingCheck } from '@/lib/work-meetings';
 import { db } from '@/lib/db';
@@ -33,6 +37,14 @@ export default async function CoacheeProfilePage({ params }: { params: { id: str
     include: { commitment: true, occurrences: { where: { captureStatus: 'captured' }, orderBy: { scheduledAt: 'desc' } } },
     orderBy: { createdAt: 'desc' },
   });
+  // Coaching guidance: actions the coachee proposed after a BiTSy conversation (always sent to
+  // the coach), and conversations the coachee chose to share.
+  const coaching = await db.coachingConversation.findMany({
+    where: { coacheeId: e.coacheeId, OR: [{ sharedWithCoach: true }, { proposalStatus: { not: 'none' } }] },
+    include: { commitment: true, turns: { where: { role: { in: ['coach', 'coachee'] } }, orderBy: { createdAt: 'asc' } } },
+    orderBy: { startedAt: 'desc' },
+  });
+  const waiting = coaching.filter((c) => c.proposalStatus === 'proposed');
   const lede = [e.coachee.jobTitle, e.client.name, `Session ${done.length} of ${e.plannedSessions}`, next ? `Next session ${day(next.scheduledAt)}` : null].filter(Boolean).join(' · ');
 
   return (
@@ -106,6 +118,47 @@ export default async function CoacheeProfilePage({ params }: { params: { id: str
                     </div>
                   );
                 })}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {coaching.length ? (
+        <section aria-labelledby="cg-head" className="card card--pad card--stack">
+          <div className="row row--tight"><h2 id="cg-head" className="heading-xsmall heading-reset grow">From {firstName(e.coachee.name)}&apos;s coaching guidance</h2>{waiting.length ? <StatusBadge tone="info" label={`${waiting.length} to approve`} /> : null}</div>
+          <p className="fine-print">{firstName(e.coachee.name)} talked actions through with BiTSy&apos;s AI coaches. You see actions {firstName(e.coachee.name)} proposed, and a conversation only if {firstName(e.coachee.name)} shared it.</p>
+          <div className="stack ruled">
+            {coaching.map((c) => (
+              <div key={c.id} className="stack stack--tight">
+                <span className="strong">{coachById(c.agentName).name} coach · {day(c.startedAt)}</span>
+                {c.commitment ? <span className="text-small">About the action: {c.commitment.title}</span> : null}
+                {c.proposedAction ? (
+                  <div className="stack stack--tight">
+                    <div className="row row--top row--tight text-small">
+                      <StatusBadge tone={c.proposalStatus === 'approved' ? 'success' : c.proposalStatus === 'declined' ? 'neutral' : 'info'} label={c.proposalStatus === 'approved' ? 'Approved' : c.proposalStatus === 'declined' ? 'Declined' : 'Proposed action'} />
+                      <span className="grow">In {firstName(e.coachee.name)}&apos;s words: &ldquo;{c.proposedAction}&rdquo;</span>
+                    </div>
+                    {c.proposalStatus === 'proposed' ? (
+                      <div className="btn-row">
+                        <ActionButton action={decideProposalAction.bind(null, c.id, true)} label="Approve the action" ariaLabel={`Approve the action: ${c.proposedAction}`} pendingLabel="Approving…" className="ecb-btn-primary" />
+                        <ActionButton action={decideProposalAction.bind(null, c.id, false)} label="Discuss it in the next session" ariaLabel={`Decline for now and discuss in the next session: ${c.proposedAction}`} pendingLabel="Saving…" className="ecb-btn-ghost" />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {c.sharedWithCoach ? (
+                  <details>
+                    <summary className="text-small">Read the conversation (AI coach)</summary>
+                    <div className="coach-thread">
+                      {c.turns.map((t) => (
+                        <div key={t.id} className={t.role === 'coach' ? 'coach-turn' : 'coach-turn coach-turn--me'}>
+                          <span className="coach-turn__meta"><strong>{t.role === 'coach' ? 'BiTSy coach · AI' : firstName(e.coachee.name)}</strong></span>
+                          {t.role === 'coach' ? <CoachText text={t.text} /> : <p className="coach-text__p pre-wrap">{t.text}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
               </div>
             ))}
           </div>
