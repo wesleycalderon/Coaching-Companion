@@ -19,6 +19,16 @@ const GROUPS: Array<{ title: string; screens: Array<[string, string, string, str
     ],
   },
   {
+    title: 'Work meetings (milestone 7, not on the canvas yet: for design review)',
+    screens: [
+      ['M7', 'Linked meetings: link a meeting or series to an action', '/me/meetings', 'coachee'],
+      ['M7', 'A linked series: feedback per meeting, trend, share, stop', '/me/meetings/ml-priya-team', 'coachee'],
+      ['M7', 'Notice everyone sees in each meeting', '/meeting/mo-priya-team-1030/notice', 'coachee'],
+      ['M7', 'Shared work-meeting feedback on the coachee profile', '/coach/coachees/priya', 'coach'],
+      ['M7', 'Work-meeting capture setting', '/admin/clients/northwind/policies', 'bts-admin'],
+    ],
+  },
+  {
     title: 'Coach workspace',
     screens: [
       ['2', 'Sessions', '/coach/sessions', 'coach'],

@@ -38,6 +38,20 @@ export default async function ClientSettingsPage() {
             {b.capturePolicy !== 'sessions' ? <p className="fine-print">Your BTS program lead chooses which engagements are on the allowlist.</p> : null}
           </fieldset>
           <div className="divider" />
+          {/* Milestone 7. Not on the canvas yet: flagged for design review. */}
+          <fieldset className="fieldset">
+            <legend className="heading-xsmall">Work meetings</legend>
+            {b.workMeetings === 'coachee_picked' ? (
+              <>
+                <div className="row row--tight text-body"><span className="grow">BTS default: coachees can link meetings they pick to an action</span><StatusBadge tone="neutral" label="Set by BTS" /></div>
+                <label className="check"><input type="checkbox" name="workMeetingsOff" defaultChecked={Boolean(r.workMeetingsOff)} /> Turn off work-meeting capture for all coachees</label>
+                <p className="fine-print">Turning it off stops every linked meeting right away.</p>
+              </>
+            ) : (
+              <div className="row row--tight text-body"><span className="grow">Work meetings aren&apos;t captured. Only coaching sessions are.</span><StatusBadge tone="neutral" label="Set by BTS" /></div>
+            )}
+          </fieldset>
+          <div className="divider" />
           <fieldset className="fieldset">
             <legend className="heading-xsmall">Retention and redaction</legend>
             {b.capturePolicy === 'companion_mode' ? (

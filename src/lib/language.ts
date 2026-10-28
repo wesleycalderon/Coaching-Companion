@@ -2,6 +2,8 @@
 // numbers are repeatable and every count traces to a sentence. No tone or emotion is inferred.
 
 export const OPEN_START = /^(what|how|why|where|when|which|who|tell|describe|walk|say more|talk me)/i;
+// For coaching language, an open question can follow a lead-in: "Before I jump in, what's hard?"
+const OPEN_CLAUSE = /(^|[,;:]\s*)(what|how|why|where|when|which|who|tell me|describe|walk me|say more|talk me)\b/i;
 const CURIOSITY = /\b(i wonder|i'm curious|i am curious|what if|help me understand|tell me more|what would happen if)\b/i;
 const FEEDBACK = /\b(i noticed|i've noticed|i observed|what i saw|when you .{3,60}, i |the impact (?:of|was|on))\b/i;
 
@@ -16,7 +18,7 @@ export function countLanguage(segments: Array<{ speakerRole: string; text: strin
   const sentences = own.flatMap((s) => s.text.split(/(?<=[.?!])\s+/)).map((x) => x.trim()).filter(Boolean);
   const questions = sentences.filter((x) => x.endsWith('?'));
   const counts: Record<LanguageMarkerKind, number> = {
-    open_question: questions.filter((q) => OPEN_START.test(q) && !CURIOSITY.test(q)).length,
+    open_question: questions.filter((q) => OPEN_CLAUSE.test(q) && !CURIOSITY.test(q)).length,
     curiosity_question: questions.filter((q) => CURIOSITY.test(q)).length,
     feedback_framing: sentences.filter((x) => FEEDBACK.test(x)).length,
   };

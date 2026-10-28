@@ -43,6 +43,7 @@ export default async function ClientPoliciesPage({ params, searchParams }: { par
     r.maxPerDay ? `${r.maxPerDay} nudge a day` : null,
     r.quietHours ? `quiet hours ${r.quietHours}` : null,
     r.pauseOnHolidays ? 'nudges paused on public holidays' : null,
+    r.workMeetingsOff ? 'work-meeting capture off' : null,
   ].filter(Boolean) as string[];
 
   return (
@@ -71,6 +72,13 @@ export default async function ClientPoliciesPage({ params, searchParams }: { par
             <label className="check check--top"><input type="radio" name="capture" value="sessions" defaultChecked={b.capturePolicy === 'sessions'} /><span><span className="strong">Capture scheduled coaching sessions</span><br /><span className="text-subtle">With consent from coach and coachee for each session.</span></span></label>
             <label className="check check--top"><input type="radio" name="capture" value="allowlist" defaultChecked={b.capturePolicy === 'allowlist'} /><span><span className="strong">Capture allowlisted sessions only</span><br /><span className="text-subtle">Admins choose which engagements can be captured, on the People page.</span></span></label>
             <label className="check check--top"><input type="radio" name="capture" value="companion_mode" defaultChecked={b.capturePolicy === 'companion_mode'} /><span><span className="strong">Companion mode without transcripts</span><br /><span className="text-subtle">Recaps come from coach notes and coachee check-ins. Recommended where transcripts could hold market-sensitive information.</span></span></label>
+          </fieldset>
+          <div className="divider" />
+          {/* Milestone 7. Not on the canvas yet: flagged for design review. */}
+          <fieldset className="fieldset">
+            <legend className="heading-xsmall">Work meetings</legend>
+            <label className="check check--top"><input type="radio" name="workMeetings" value="off" defaultChecked={(b.workMeetings ?? 'off') === 'off'} /><span><span className="strong">Off</span><br /><span className="text-subtle">Only coaching sessions are captured. Recommended for companion mode and sensitive-data clients.</span></span></label>
+            <label className="check check--top"><input type="radio" name="workMeetings" value="coachee_picked" defaultChecked={b.workMeetings === 'coachee_picked'} /><span><span className="strong">Meetings coachees pick</span><br /><span className="text-subtle">A coachee links a meeting or series to one of their actions. Everyone sees a notice each time, capture pauses for anyone who hasn&apos;t agreed, and meetings with an external participant are never captured. Only the coachee&apos;s own words are analyzed.</span></span></label>
           </fieldset>
           <div className="divider" />
           <fieldset className="fieldset">

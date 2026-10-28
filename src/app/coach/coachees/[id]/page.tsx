@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { allow, NotFoundCard, PageHead, SampleNote, WrongRole } from '@/components/ui';
-import { StatusBadge } from '@/ds/components';
+import { RoleBadge, StatusBadge } from '@/ds/components';
+import { ATTEMPT_BADGE } from '@/lib/companion/view';
+import type { WorkMeetingCheck } from '@/lib/work-meetings';
 import { db } from '@/lib/db';
 import type { OrgOutcome } from '@/lib/domain';
 import { asJson, day, firstName } from '@/lib/format';
@@ -25,6 +27,12 @@ export default async function CoacheeProfilePage({ params }: { params: { id: str
   // Newest session first; within a session, in the order they were made.
   const commitments = [...e.sessions].reverse().flatMap((s) => [...s.commitments].sort((a, b) => a.id.localeCompare(b.id)).map((c) => ({ ...c, sessionNumber: s.number })));
   const patterns = await coacheePatterns(e.id, e.coachee.name);
+  // Work meetings appear only when the coachee shared that series (milestone 7).
+  const shared = await db.meetingLink.findMany({
+    where: { coacheeId: e.coacheeId, sharedWithCoach: true },
+    include: { commitment: true, occurrences: { where: { captureStatus: 'captured' }, orderBy: { scheduledAt: 'desc' } } },
+    orderBy: { createdAt: 'desc' },
+  });
   const lede = [e.coachee.jobTitle, e.client.name, `Session ${done.length} of ${e.plannedSessions}`, next ? `Next session ${day(next.scheduledAt)}` : null].filter(Boolean).join(' · ');
 
   return (
@@ -77,6 +85,32 @@ export default async function CoacheeProfilePage({ params }: { params: { id: str
           </div>
         </section>
       </div>
+
+      {shared.length ? (
+        <section aria-labelledby="wm-head" className="card card--pad card--stack">
+          <div className="row row--tight"><h2 id="wm-head" className="heading-xsmall heading-reset grow">Work meetings {firstName(e.coachee.name)} shared</h2><RoleBadge label="AI" /></div>
+          <p className="fine-print">Feedback from meetings {firstName(e.coachee.name)} linked to an action and chose to share with you. It comes from {firstName(e.coachee.name)}&apos;s own words only; no one else&apos;s words are kept.</p>
+          <div className="stack ruled">
+            {shared.map((l) => (
+              <div key={l.id} className="stack stack--tight">
+                <span className="strong">{l.title}{l.cadence ? ` · ${l.cadence}` : ''}</span>
+                <span className="text-small">For the action: {l.commitment.title}</span>
+                {l.occurrences.length === 0 ? <span className="fine-print">No feedback yet.</span> : l.occurrences.map((o) => {
+                  const check = asJson<WorkMeetingCheck>(o.check);
+                  const badge = ATTEMPT_BADGE[check.attempted];
+                  return (
+                    <div key={o.id} className="row row--top row--tight text-small">
+                      <span className="nowrap">{day(o.scheduledAt)}</span>
+                      <StatusBadge tone={badge.tone} label={badge.label.replace(/^You tried it$/, 'Tried')} />
+                      <span className="grow">Feedback to {firstName(e.coachee.name)}: &ldquo;{check.summary}&rdquo;</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <SampleNote />
     </div>
   );

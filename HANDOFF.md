@@ -134,7 +134,7 @@ Every content record carries an owner, a consent scope and an expiry.
 - **Rubric:** id, name, usedFor, version, status, markers[] (name, check, kappa, shown).
 - **AuditEvent:** id, actorId, action, object, clientId, at.
 
-Where the prototype's schema still differs (to align when work meetings land in milestone 7): insights live inside `Summary.insights` with a `kind` field rather than their own table; outcomes use `extent` for the degree; goals keep a free-text `theme` (no longer used for client themes, which now come from capabilities); goals have no `private` flag and actions have no `insightId` or capabilities yet.
+Where the prototype's schema still differs (a follow-up after milestone 7; work meetings use their own `MeetingLink` and `MeetingOccurrence` tables, see PROGRESS.md): insights live inside `Summary.insights` with a `kind` field rather than their own table; outcomes use `extent` for the degree; goals keep a free-text `theme` (no longer used for client themes, which now come from capabilities); goals have no `private` flag and actions have no `insightId` or capabilities yet.
 
 Status tone mapping for StatusBadge: not started = neutral, tried = info, practiced = live, habit = success, set aside = warning.
 
@@ -174,7 +174,7 @@ Rules for every prompt: use only what was said or written; never infer emotion, 
 4. **Coach tools:** Ask the AI, next-session plan, practice feedback, coach manager view. Done; see PROGRESS.md.
 5. **Admin console:** clients, policies, people, models, integrations (stubbed), audit log, client admin settings. Done; see PROGRESS.md.
 6. **Metrics:** the three renewal metrics computed from data, with the minimum-group-size rule. Done; see PROGRESS.md.
-7. **Work meetings:** coachee links a meeting or series to a commitment, per-occurrence notice and consent, external-participant skip, coachee-only storage, AI task 10, the monthly keep-or-stop prompt, and the capture setting for admins (see "Screens still to design for work meetings"). Also aligns the schema with the Roadmap data model above.
+7. **Work meetings:** coachee links a meeting or series to a commitment, per-occurrence notice and consent, external-participant skip, coachee-only storage, AI task 10, the monthly keep-or-stop prompt, and the capture setting for admins (see "Screens still to design for work meetings"). Done; see PROGRESS.md.
 
 Each milestone ends with the app running locally, the matching canvas screens reproduced, and a short note of what was stubbed.
 

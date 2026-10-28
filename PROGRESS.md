@@ -161,6 +161,30 @@ Open `/` for the screen index: every canvas artboard, its route, and which view 
 - No automated accessibility check (axe needs your OK as a new dependency).
 - No new dependencies.
 
+## Milestone 7: work meetings (done; screens not on the canvas yet, flagged for design review)
+
+**Try it as Priya (coachee):** open **Linked meetings** (`/me/meetings`). Link a meeting or a whole series to one of your actions. On the Weekly team meeting series, press **Start the meeting and show the notice**, answer for each colleague on the notice page, then **Simulate the meeting transcript**. Try it once with someone declining. Link the carrier review (an external participant is invited) and start it. As Daniel, open Priya's profile to see the series she shared.
+
+- **Linking** (`src/lib/work-meetings.ts`, `/me/meetings`): the coachee picks one of their open actions and a meeting from their calendar (a synthetic stub, `src/lib/calendar.ts`), either just the next one or "this and all future meetings". Each link is audit-logged as a consent event. Nudges in the chat and Slack get a "Link a meeting to this action" link when the client allows work meetings.
+- **Every occurrence needs everyone's agreement:** starting a meeting shows the notice (`/meeting/[id]/notice`, a mock of the meeting app like the in-meeting panel). Capture stays paused until every colleague agrees; a decline, or a speaker in the transcript who wasn't invited (a late joiner), keeps it paused and nothing is kept. Any external participant means the occurrence isn't captured at all. Each notice and answer is audit-logged.
+- **Only the coachee's words:** the transcript is parsed in memory, everyone else's lines are dropped before redaction, counting or the AI call, and no transcript is stored, only the check. AI task 10 (`prompts/work-meeting-check.md`) sees only the coachee's lines and returns attempted (yes, partly, no or unclear), a two-sentence summary and quotes. Every quote is checked against the coachee's words; a claimed attempt with no checked quote is downgraded to "unclear". Coaching-language counts come from code.
+- **Feedback to the coachee:** per meeting, with quotes and question counts, a trend across the series, and a message in the chat or Slack. The coachee can share a series with their coach (audit-logged); the coach's profile then shows the shared feedback, never anyone else's words.
+- **Stopping:** the coachee can stop a link (with confirmation). Links also stop when the action becomes a habit or is set aside (from the chat, Slack, or the coach applying a follow-up), when the engagement ends, or when the client turns work meetings off. Upcoming occurrences then show "Not captured, link stopped".
+- **Monthly keep-or-stop:** an active series not confirmed for 30 days gets a chat or Slack message with "Keep it linked" or "Stop linking it" (hourly with `COMPANION_SCHEDULER`; the series page has a "Send the monthly check now" control). The series page also offers "Keep it linked" when due.
+- **Admin setting:** BTS admins set work-meeting capture to Off or "Meetings coachees pick" on client policies; client admins can only turn it off. New clients get it on for the standard template and off for regulated and financial services. Seeded: Northwind and Orrin on, Halden and Brightline off.
+
+### Checked
+- In the browser: linking (including the "doesn't repeat" error), the notice with agree and decline, capture staying paused until everyone agreed, a live AI check on the synthetic team meeting (three quotes, all verified), the external-participant skip, the monthly check answered in the chat, setting the action aside in the chat stopping all three of its links, and turning work meetings off for Northwind stopping the rest. Every step wrote its audit event.
+- Another coachee gets "not found" for Priya's meetings and notices; the coach sees only shared series.
+- Every route returns 200 for every role; the new pages fit at 375 px; typecheck passes; no server errors. `npm run db:seed` restores the demo state.
+
+### Stubbed or not yet built in milestone 7
+- The calendar is a synthetic stub, and the notice is a web mock: no meeting-app install, and colleagues' consent isn't really collected from them (the prototype answers for each). `STUB: BTS Studio engineering` in `src/lib/calendar.ts`, `src/lib/work-meetings.ts` and the notice page.
+- Linking from Slack itself (rather than a link to the web page) isn't built.
+- Deleting work-meeting feedback from "My data" isn't built yet (deletion is a stub there for everything).
+- The Roadmap schema alignment (an Insight table, a private flag on goals, capabilities on actions) is still to do; see HANDOFF.md.
+- No new dependencies.
+
 ## Live API check (Sonnet 5.5, `ANTHROPIC_MODEL` in `.env`)
 
 - Amara's session 2 through the Zoom simulator: all five tasks (speaker roles, summary, actions, follow-up, practice feedback) returned valid output; no quote failed the transcript check, nothing was dropped, one client term was redacted. The uncertain "hand Kai the rota" action came back flagged for coach confirmation.
@@ -189,3 +213,8 @@ Open `/` for the screen index: every canvas artboard, its route, and which view 
 - **Follow-up seed tweak:** under the stricter seven-day rule, Northwind's follow-up came out at 87 percent. One check-in was added (Priya answers "I'll try it" six days after setting her second action) to keep the canvas's 88 percent.
 - **Themes from capabilities** (your choice): Northwind shows two themes, not the canvas's three, because no third capability is shared by 15 or more coachees.
 - **Docs merged** from the design file's updated CLAUDE.md and HANDOFF.md, keeping the repo's Done markers, the Zoom capture decision, the opportunity brief link and `/me/roadmap`, and the rule that only the coachee chooses organizational outcomes. Work meetings became milestone 7. HANDOFF.md lists where the schema still differs from the new Roadmap data model.
+- **Work meetings in their own tables** (`MeetingLink`, `MeetingOccurrence`) rather than as sessions with `kind: work_meeting`, as HANDOFF suggests: every coach screen, metric and AI search reads sessions, so separate tables mean work-meeting data can't reach a coach unless the coachee shares it.
+- **Pausing is all or nothing** per occurrence: if anyone present hasn't agreed (or joins without seeing the notice), nothing from that meeting is analyzed, rather than cutting out the minutes they were present.
+- **A work-meeting check doesn't change the action's status.** The coachee still marks it tried in their check-in.
+- **Open questions for coaching language** now also count a question that follows a lead-in ("Before I jump in, what's hard?"). The coach's practice stats keep their earlier rule.
+- **Dev server after the move:** the app's preview button still starts the copy in the old session folder. Run `npm run dev` in `Concept Companion/repo` instead.

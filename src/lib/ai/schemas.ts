@@ -82,3 +82,10 @@ export const PracticeSchema = z.object({
 export type AskOutput = z.infer<typeof AskSchema>;
 export type PlanOutput = z.infer<typeof PlanSchema>;
 export type PracticeOutput = z.infer<typeof PracticeSchema>;
+
+/** Task 10. Quotes are checked against the coachee's own lines; anything else is dropped. */
+export const WorkMeetingCheckSchema = z.object({
+  attempted: z.enum(['yes', 'partly', 'no', 'unclear']),
+  summary: z.string(),
+  evidence: z.array(z.object({ quote: z.string(), time: z.string() })),
+});

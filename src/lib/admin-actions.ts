@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { FEATURE_LABEL, nextVersion, USED_FOR, type RubricVersion } from './admin';
 import { audit } from './audit';
+import { stopLinksForClient } from './work-meetings';
 import { db } from './db';
 import { CHANNEL_LABEL, INTEGRATION_LABEL, MIN_MARKER_KAPPA, REGION_LABEL, ROLE_LABEL, type Channel, type FeatureFlags, type NudgeDefaults, type RubricMarker } from './domain';
 import { andList, asJson, count, Count, eventTime, firstName } from './format';
@@ -125,6 +126,8 @@ export async function createClient(_prev: FormState, fd: FormData): Promise<Form
         id, name, region, capturePolicy: tpl.capturePolicy, retentionDays: tpl.retentionDays, redactionOn: true, redactionTerms: [],
         nudgeDefaults: nudgeDefaults as object, featureFlags: flags as object, activeRubricIds: rubrics.map((r) => r.id), mcpScopes: [],
         coachingOffer: offer, contractStart: start, contractEnd: end, createdAt: eventTime(),
+        // Off by default where transcripts are restricted (HANDOFF: companion mode, sensitive data).
+        workMeetings: tpl.capturePolicy === 'sessions' ? 'coachee_picked' : 'off',
       },
     });
     await tx.integration.createMany({ data: integrationsFor(id, name) });
@@ -142,18 +145,27 @@ export async function createClient(_prev: FormState, fd: FormData): Promise<Form
 // ── Policies (BTS admin) ────────────────────────────────────────────────────────────
 
 /** Writes the combined policy in force and applies its side effects. */
-async function applyPolicy(clientId: string, before: CapturePolicy, b: BtsPolicy, r: ClientRestrictions, extra: object = {}) {
+async function applyPolicy(clientId: string, before: CapturePolicy, b: BtsPolicy, r: ClientRestrictions, actorId: string, extra: object = {}) {
   const inForce = combine(b, r);
+  const prior = await db.client.findUniqueOrThrow({ where: { id: clientId } });
   await db.client.update({
     where: { id: clientId },
     data: {
       ...extra,
       btsPolicy: b as object, clientRestrictions: r as object,
       capturePolicy: inForce.capturePolicy, retentionDays: inForce.retentionDays, redactionOn: inForce.redactionOn,
-      redactionTerms: inForce.redactionTerms, nudgeDefaults: inForce.nudgeDefaults as object,
+      redactionTerms: inForce.redactionTerms, nudgeDefaults: inForce.nudgeDefaults as object, workMeetings: inForce.workMeetings,
     },
   });
-  const after = inForce.capturePolicy;
+  // Turning work-meeting capture off stops every coachee's linked meetings.
+  const stopped = prior.workMeetings === 'coachee_picked' && inForce.workMeetings === 'off' ? await stopLinksForClient(clientId, actorId) : 0;
+  const meetingNote = stopped ? `${Count(stopped)} linked work ${stopped === 1 ? 'meeting was' : 'meetings were'} stopped.` : null;
+  const capture = captureEffect(clientId, before, inForce.capturePolicy);
+  const notes = [await capture, meetingNote].filter(Boolean);
+  return notes.length ? notes.join(' ') : null;
+}
+
+async function captureEffect(clientId: string, before: CapturePolicy, after: CapturePolicy): Promise<string | null> {
   if (after === before) return null;
   // Companion mode stops capture of every upcoming session.
   if (after === 'companion_mode') {
@@ -173,6 +185,7 @@ async function applyPolicy(clientId: string, before: CapturePolicy, b: BtsPolicy
 function policyChanges(prev: BtsPolicy, next: BtsPolicy): string[] {
   const out: string[] = [];
   if (prev.capturePolicy !== next.capturePolicy) out.push(`Capture set to ${CAPTURE_TEXT[next.capturePolicy]}`);
+  if ((prev.workMeetings ?? 'off') !== (next.workMeetings ?? 'off')) out.push(`Work-meeting capture ${next.workMeetings === 'coachee_picked' ? 'on, for meetings coachees pick' : 'off'}`);
   if (prev.retentionDays !== next.retentionDays) out.push(`Transcript retention set to ${retentionText(next.retentionDays)}`);
   if (prev.redactionOn !== next.redactionOn) out.push(`Redaction turned ${next.redactionOn ? 'on' : 'off'}`);
   if (prev.redactionTerms.join('|') !== next.redactionTerms.join('|')) out.push(`Redaction terms changed (${count(next.redactionTerms.length)} ${next.redactionTerms.length === 1 ? 'term' : 'terms'})`);
@@ -191,6 +204,7 @@ export async function savePolicies(clientId: string, _prev: FormState, fd: FormD
   if (!c) return { error: "We couldn't find this client." };
 
   const capture = text(fd, 'capture') as CapturePolicy;
+  const workMeetings = text(fd, 'workMeetings') === 'coachee_picked' ? 'coachee_picked' : 'off';
   const retention = Number(text(fd, 'retention'));
   const terms = splitTerms(text(fd, 'terms'));
   const ch1 = text(fd, 'ch1') as Channel;
@@ -221,6 +235,7 @@ export async function savePolicies(clientId: string, _prev: FormState, fd: FormD
   const prev = btsPolicy(c);
   const next: BtsPolicy = {
     capturePolicy: capture,
+    workMeetings,
     retentionDays: retention,
     redactionOn: fd.get('redact') === 'on',
     redactionTerms: terms,
@@ -240,7 +255,7 @@ export async function savePolicies(clientId: string, _prev: FormState, fd: FormD
   if (c.minGroupSize !== minGroup) changes.push(`Smallest report group set to ${count(minGroup)} coachees`);
   if (changes.length === 0) return { message: 'Nothing changed.' };
 
-  const effect = await applyPolicy(c.id, c.capturePolicy as CapturePolicy, next, clientRestrictions(c), { featureFlags: flags as object, activeRubricIds: rubricIds, minGroupSize: minGroup });
+  const effect = await applyPolicy(c.id, c.capturePolicy as CapturePolicy, next, clientRestrictions(c), persona.userId, { featureFlags: flags as object, activeRubricIds: rubricIds, minGroupSize: minGroup });
   for (const object of changes) await audit({ actorId: persona.userId, action: 'update', category: 'config', label: 'Policy changed', object, clientId: c.id });
   refreshAdmin(c.id);
   const inForce = await db.client.findUniqueOrThrow({ where: { id: c.id } });
@@ -291,6 +306,7 @@ export async function saveClientSettings(_prev: FormState, fd: FormData): Promis
     maxPerDay: max < b.nudgeDefaults.maxPerDay ? max : undefined,
     quietHours: quiet && formatQuietHours(quietText) !== b.nudgeDefaults.quietHours ? formatQuietHours(quietText) : undefined,
     pauseOnHolidays: fd.get('pauseOnHolidays') === 'on' && !b.nudgeDefaults.pauseOnHolidays ? true : undefined,
+    workMeetingsOff: b.workMeetings === 'coachee_picked' && fd.get('workMeetingsOff') === 'on' ? true : undefined,
   };
 
   const changes: string[] = [];
@@ -299,11 +315,12 @@ export async function saveClientSettings(_prev: FormState, fd: FormData): Promis
   if ((before.extraTerms ?? []).join('|') !== (next.extraTerms ?? []).join('|')) changes.push(`Extra redaction terms changed (${count(extraTerms.length)} ${extraTerms.length === 1 ? 'term' : 'terms'})`);
   if (before.maxPerDay !== next.maxPerDay) changes.push(`At most ${count(next.maxPerDay ?? b.nudgeDefaults.maxPerDay)} ${(next.maxPerDay ?? 2) === 1 ? 'nudge' : 'nudges'} a day`);
   if (before.quietHours !== next.quietHours) changes.push(`Quiet hours set to ${next.quietHours ?? b.nudgeDefaults.quietHours}`);
+  if (Boolean(before.workMeetingsOff) !== Boolean(next.workMeetingsOff)) changes.push(`Work-meeting capture ${next.workMeetingsOff ? 'turned off' : 'back to the BTS setting'}`);
   if (Boolean(before.pauseOnHolidays) !== Boolean(next.pauseOnHolidays)) changes.push(`Nudges ${next.pauseOnHolidays ? 'paused' : 'not paused'} on public holidays`);
   if (changes.length === 0) return { message: 'Nothing changed.' };
 
   const clean = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as ClientRestrictions;
-  const effect = await applyPolicy(c.id, c.capturePolicy as CapturePolicy, b, clean);
+  const effect = await applyPolicy(c.id, c.capturePolicy as CapturePolicy, b, clean, persona.userId);
   for (const object of changes) await audit({ actorId: persona.userId, action: 'update', category: 'config', label: 'Policy changed', object, clientId: c.id });
   refreshAdmin(c.id);
   const allowlistNote = effect?.startsWith('No engagements') ? 'No engagements are on the allowlist yet; your BTS program lead adds them.' : effect;

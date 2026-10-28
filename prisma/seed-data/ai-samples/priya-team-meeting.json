@@ -1,0 +1,15 @@
+{
+  "note": "Pre-written sample output for the synthetic work-meeting transcript prisma/seed-data/transcripts/priya-team-meeting.txt (milestone 7). Matched by the hash of Priya's own lines after redaction, the only words the check sees.",
+  "transcriptSha256": "1b3840318f164f6dac0862f26c69e52e3e076cb4e396caa1f7772e872aa037c9",
+  "outputs": {
+    "work-meeting-check": {
+      "attempted": "yes",
+      "summary": "You asked about the problem before suggesting a fix, then asked two more questions about what the team needed and how you'd know it worked.",
+      "evidence": [
+        { "quote": "Before I jump in with a fix, what's making this hard right now?", "time": "00:31" },
+        { "quote": "I'm curious, what would you need from the planners to make four o'clock work?", "time": "01:12" },
+        { "quote": "What would tell us by next Thursday that it's working?", "time": "02:10" }
+      ]
+    }
+  }
+}

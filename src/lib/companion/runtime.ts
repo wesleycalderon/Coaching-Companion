@@ -23,6 +23,9 @@ export async function startCompanion() {
     });
     cron.schedule('0 * * * *', () => {
       draftDuePlans().then((log) => log.forEach((l) => console.log(`[plans] ${l}`))).catch((e) => console.error('[plans] run failed', e));
+      // Milestone 7: the monthly keep-or-stop check for linked meeting series.
+      import('../work-meetings').then(({ promptSeriesReviews }) => promptSeriesReviews())
+        .then((log) => log.forEach((l) => console.log(`[meetings] ${l}`))).catch((e) => console.error('[meetings] review run failed', e));
     });
     console.log('[nudges] scheduler on: checking every five minutes for 12:00 and 17:00 slots, and hourly for plans due');
   }

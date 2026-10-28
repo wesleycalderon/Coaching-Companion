@@ -1,0 +1,14 @@
+[00:00:04] Priya Raman: Thanks for joining. First item is the depot handover that slipped on Tuesday.
+[00:00:15] Sam Osei: The night shift didn't get the updated route sheet, so they ran last week's.
+[00:00:31] Priya Raman: Before I jump in with a fix, what's making this hard right now?
+[00:00:40] Sam Osei: The sheets live in two places, and nobody owns the final version.
+[00:00:58] Ana Ruiz: I could own the final version if the planners send me changes by four.
+[00:01:12] Priya Raman: I'm curious, what would you need from the planners to make four o'clock work?
+[00:01:24] Ana Ruiz: A heads-up before lunch if a route is likely to change.
+[00:01:40] Leo Brandt: Planning can do that. We already know most changes by noon.
+[00:01:55] Priya Raman: Okay. So Ana owns the final sheet, and planning flags changes by noon.
+[00:02:10] Priya Raman: What would tell us by next Thursday that it's working?
+[00:02:21] Sam Osei: No night shift running an old sheet. We can check the logs on Monday.
+[00:02:35] Priya Raman: Good. Next item is the holiday rota. Leo, where are we?
+[00:02:44] Leo Brandt: Two gaps in the last week of December. I'll post them today.
+[00:02:58] Priya Raman: Thanks. Let's pick that up async and close here.

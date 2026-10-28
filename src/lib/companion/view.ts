@@ -6,11 +6,20 @@ import { db } from '../db';
 import { summaryItemLabel, type SummaryItem } from '../domain';
 import { asJson, day, firstName, time, weekdayLong } from '../format';
 import { commitmentBadge, type Badge } from '../queries';
+import type { WorkMeetingCheck } from '../work-meetings';
 import { retentionSentence } from './text';
+
+export const ATTEMPT_BADGE: Record<WorkMeetingCheck['attempted'], Badge> = {
+  yes: { label: 'You tried it', tone: 'success' },
+  partly: { label: 'Partly tried', tone: 'info' },
+  no: { label: 'Not this time', tone: 'neutral' },
+  unclear: { label: 'Not clear', tone: 'neutral' },
+};
 
 export type MessageKind =
   | 'welcome' | 'consent_request' | 'pre_session_prompt' | 'recap' | 'nudge' | 'check_in'
-  | 'set_aside_reason' | 'set_aside_plan' | 'reflection_prompt' | 'ack';
+  | 'set_aside_reason' | 'set_aside_plan' | 'reflection_prompt' | 'ack'
+  | 'meeting_feedback' | 'meeting_review';
 
 export interface Choice {
   value: string;
@@ -64,7 +73,7 @@ export const SET_ASIDE_REASONS: Choice[] = [
 
 export async function buildView(m: CompanionMessage): Promise<MessageView> {
   const r = (m.response ?? {}) as Response;
-  const data = (m.data ?? {}) as { dayLabel?: string; badge?: Badge; mode?: 'swap'; dueBy?: string | null };
+  const data = (m.data ?? {}) as { dayLabel?: string; badge?: Badge; mode?: 'swap'; dueBy?: string | null; linkId?: string; occurrenceId?: string };
   const base: MessageView = {
     id: m.id, kind: m.kind as MessageKind, sentAt: m.sentAt, meta: time(m.sentAt), dayLabel: data.dayLabel,
     paragraphs: [], facts: [], items: [], actions: [], choices: [], choiceLayout: 'row', answered: Boolean(m.respondedAt),
@@ -132,6 +141,8 @@ export async function buildView(m: CompanionMessage): Promise<MessageView> {
       return {
         ...base,
         paragraphs: [m.text],
+        // Milestone 7: link a work meeting to this action, where the client allows it.
+        link: recipient.client?.workMeetings === 'coachee_picked' && m.commitmentId ? { label: 'Link a meeting to this action ↗', href: `/me/meetings?action=${m.commitmentId}` } : undefined,
         choices: choose([{ value: 'will_try', label: "I'll try it" }, { value: 'later', label: 'Remind me later' }]),
       };
     case 'check_in': {
@@ -175,6 +186,35 @@ export async function buildView(m: CompanionMessage): Promise<MessageView> {
     }
     case 'ack':
       return { ...base, paragraphs: [m.text], badge: data.badge };
+    case 'meeting_feedback': {
+      // Milestone 7: the coachee's own feedback from a linked work meeting.
+      const o = await db.meetingOccurrence.findUnique({ where: { id: data.occurrenceId ?? '' }, include: { link: { include: { commitment: true } } } });
+      const check = o?.check as WorkMeetingCheck | null | undefined;
+      if (!o || !check) return { ...base, paragraphs: [m.text] };
+      const curious = check.counts.curiosity_question + check.counts.open_question;
+      return {
+        ...base,
+        meta: `${time(m.sentAt)} · Only you see this`,
+        title: `${o.link.title}, ${day(o.scheduledAt)}`,
+        badge: ATTEMPT_BADGE[check.attempted],
+        paragraphs: [check.summary],
+        items: check.evidence.map((e) => ({ label: `You said, ${e.time}`, text: `"${e.quote}"` })),
+        facts: [`Your action: ${o.link.commitment.ifThenText}`, `Open or curiosity questions you asked: ${curious}`],
+        link: { label: 'See this series ↗', href: `/me/meetings/${o.linkId}` },
+        note: `Only your own words were analyzed. Nothing anyone else said was kept. ${coachFirst} sees this only if you share the series.`,
+      };
+    }
+    case 'meeting_review': {
+      const l = await db.meetingLink.findUnique({ where: { id: data.linkId ?? '' }, include: { commitment: true } });
+      if (!l) return { ...base, paragraphs: [m.text] };
+      return {
+        ...base,
+        title: `Keep linking ${l.title}?`,
+        paragraphs: [`It's been a month. ${l.title}${l.cadence ? ` (${l.cadence})` : ''} is linked to your action: ${l.commitment.ifThenText}`],
+        facts: ['Everyone still sees a notice each time, and capture pauses for anyone who hasn’t agreed.', 'Only your own words are analyzed.'],
+        choices: choose([{ value: 'keep', label: 'Keep it linked', primary: true }, { value: 'stop', label: 'Stop linking it' }]),
+      };
+    }
   }
 }
 

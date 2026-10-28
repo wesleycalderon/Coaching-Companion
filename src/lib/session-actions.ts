@@ -115,6 +115,11 @@ export async function saveReview(sessionId: string, _prev: FormState, formData: 
     else if (observations) await tx.coachNote.create({ data: { id: `note-${session.id}`, sessionId: session.id, coachId: persona.userId, observations, showUpTags: [] } });
   });
 
+  if (intent === 'approve') {
+    // Milestone 7: an action that's now a habit or set aside stops its linked work meetings.
+    const { stopLinksForCommitment } = await import('./work-meetings');
+    for (const p of proposals.filter((p) => apply.has(p.commitmentId))) await stopLinksForCommitment(p.commitmentId, p.proposedStatus);
+  }
   revalidatePath(`/coach/sessions/${sessionId}/review`);
   revalidatePath('/coach/sessions');
   if (intent === 'approve') {

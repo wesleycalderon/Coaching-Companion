@@ -6,6 +6,7 @@ import type { Prisma } from '@prisma/client';
 import { db } from '../db';
 import { COMMITMENT_STATUS, SET_ASIDE_REASON_LABEL, type CommitmentStatus, type SetAsideReason } from '../domain';
 import { day, eventTime, firstName } from '../format';
+import { stopLinksForCommitment } from '../work-meetings';
 import { send } from './send';
 
 export interface CompanionInput {
@@ -176,17 +177,33 @@ export async function respond(messageId: string, input: CompanionInput, actorUse
           // The coachee's own words, so no coach confirmation is needed; the coach sees it in the profile.
           db.commitment.create({ data: { id, sessionId: c.sessionId, goalId: c.goalId, ifThenText: text, title, shortTitle: title, createdAt: now, status: 'not_started', approved: true } }),
         ]);
+        await stopLinksForCommitment(c.id, 'set_aside');
         await save({ choice: 'swap', swapText: text });
         await send({ recipientId: m.recipientId, kind: 'ack', text: `Swapped. Your new action: ${text}`, data: { badge: badgeFor('not_started') } });
         return { ok: true };
       }
       if (input.choice === 'keep') {
         await db.commitment.update({ where: { id: c.id }, data: { status: 'set_aside', setAsideReason: reason ? SET_ASIDE_REASON_LABEL[reason].toLowerCase() : 'set aside by the coachee' } });
+        await stopLinksForCommitment(c.id, 'set_aside');
         await save({ choice: 'keep' });
         await send({ recipientId: m.recipientId, kind: 'ack', text: `Set aside. ${coach} will see this and can talk it through with you.`, data: { badge: badgeFor('set_aside') } });
         return { ok: true };
       }
       return { error: 'Choose what to do with this action.' };
+    }
+
+    case 'meeting_review': {
+      if (input.choice !== 'keep' && input.choice !== 'stop') return { error: 'Choose whether to keep the series linked.' };
+      const linkId = (m.data as { linkId?: string } | null)?.linkId ?? '';
+      const { confirmSeries } = await import('../work-meetings');
+      const result = await confirmSeries(linkId, m.recipientId, input.choice === 'keep');
+      await save({ choice: input.choice });
+      if ('error' in result) {
+        await send({ recipientId: m.recipientId, kind: 'ack', text: 'That series had already stopped, so nothing changed.' });
+        return { ok: true };
+      }
+      await send({ recipientId: m.recipientId, kind: 'ack', text: input.choice === 'keep' ? `Okay, ${result.link.title} stays linked. I'll ask again in a month.` : `Stopped. ${result.link.title} won't be captured from now on.` });
+      return { ok: true };
     }
   }
   return { error: "This message doesn't take an answer." };

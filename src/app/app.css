@@ -992,3 +992,8 @@ a:hover {
   align-items: flex-start;
   gap: var(--space-050);
 }
+
+/* Milestone 7: work meetings */
+.nowrap {
+  white-space: nowrap;
+}

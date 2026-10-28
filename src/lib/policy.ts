@@ -8,8 +8,12 @@ import { asJson } from './format';
 
 export type CapturePolicy = 'sessions' | 'allowlist' | 'companion_mode';
 
+export type WorkMeetingPolicy = 'off' | 'coachee_picked';
+
 export interface BtsPolicy {
   capturePolicy: CapturePolicy;
+  /** Work meetings the coachee links to an action (milestone 7). */
+  workMeetings?: WorkMeetingPolicy;
   retentionDays: number;
   redactionOn: boolean;
   redactionTerms: string[];
@@ -24,6 +28,7 @@ export interface ClientRestrictions {
   maxPerDay?: number;
   quietHours?: string;
   pauseOnHolidays?: boolean;
+  workMeetingsOff?: boolean;
 }
 
 export const CAPTURE_RANK: Record<CapturePolicy, number> = { sessions: 0, allowlist: 1, companion_mode: 2 };
@@ -32,12 +37,16 @@ export const MAX_RETENTION_DAYS = 7;
 /** BTS admins can raise the reporting threshold but never go under this. */
 export const MIN_GROUP_FLOOR = 15;
 
-type PolicyFields = Pick<Client, 'capturePolicy' | 'retentionDays' | 'redactionOn' | 'redactionTerms' | 'nudgeDefaults' | 'btsPolicy' | 'clientRestrictions'>;
+type PolicyFields = Pick<Client, 'capturePolicy' | 'retentionDays' | 'redactionOn' | 'redactionTerms' | 'nudgeDefaults' | 'btsPolicy' | 'clientRestrictions' | 'workMeetings'>;
 
 export function btsPolicy(c: PolicyFields): BtsPolicy {
-  if (c.btsPolicy) return asJson<BtsPolicy>(c.btsPolicy);
+  if (c.btsPolicy) {
+    const b = asJson<BtsPolicy>(c.btsPolicy);
+    return { ...b, workMeetings: b.workMeetings ?? (c.workMeetings as WorkMeetingPolicy) };
+  }
   return {
     capturePolicy: c.capturePolicy as CapturePolicy,
+    workMeetings: c.workMeetings as WorkMeetingPolicy,
     retentionDays: c.retentionDays,
     redactionOn: c.redactionOn,
     redactionTerms: asJson<string[]>(c.redactionTerms),
@@ -58,6 +67,7 @@ export function combine(b: BtsPolicy, r: ClientRestrictions) {
   const quietHours = clientQuiet && (!btsQuiet || covers(clientQuiet, btsQuiet)) ? r.quietHours! : b.nudgeDefaults.quietHours;
   return {
     capturePolicy: capture,
+    workMeetings: (r.workMeetingsOff ? 'off' : b.workMeetings ?? 'off') as WorkMeetingPolicy,
     retentionDays: Math.min(b.retentionDays, r.retentionDays ?? MAX_RETENTION_DAYS),
     redactionOn: b.redactionOn || extra.length > 0,
     redactionTerms: terms,

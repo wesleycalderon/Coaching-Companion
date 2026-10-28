@@ -20,7 +20,7 @@ export interface SendInput {
   sessionId?: string;
   commitmentId?: string;
   checkInId?: string;
-  data?: { dayLabel?: string; badge?: Badge; mode?: 'swap'; dueBy?: string | null };
+  data?: { dayLabel?: string; badge?: Badge; mode?: 'swap'; dueBy?: string | null; linkId?: string; occurrenceId?: string };
   sentAt?: Date;
 }
 

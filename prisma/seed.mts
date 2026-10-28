@@ -129,6 +129,7 @@ const CLIENTS = [
     redactionTerms: ['Project Falcon', 'Harbor contract'],
     nudgeDefaults: { channels: ['slack', 'email'], midday: '12:00', endOfDay: '17:00', maxPerDay: 2, quietHours: '19:00 to 08:00', pauseOnHolidays: true },
     featureFlags: FLAGS_ON,
+    workMeetings: 'coachee_picked',
     activeRubricIds: ['roadmap', 'grow', 'icf'],
     mcpScopes: ['goals', 'commitments'],
     coachingOffer: 'add_on',
@@ -177,6 +178,7 @@ const CLIENTS = [
     redactionTerms: [],
     nudgeDefaults: { channels: ['slack', 'email'], midday: '12:00', endOfDay: '17:00', maxPerDay: 2, quietHours: '19:00 to 08:00', pauseOnHolidays: true },
     featureFlags: { ...FLAGS_ON, standalone: true },
+    workMeetings: 'coachee_picked',
     activeRubricIds: ['roadmap', 'grow', 'icf'],
     mcpScopes: [],
     coachingOffer: 'both',
@@ -770,11 +772,53 @@ for (let i = 0; i < 1278; i++) {
   audit.push({ id: `audit-old-${i + 1}`, actorId: ev.category === 'config' ? 'noor' : pick(actorsByClient[clientId]), action: ev.action, category: ev.category, label: ev.label, object: ev.object(1 + Math.floor(rand() * 6)), clientId, at });
 }
 
+// ── work meetings (milestone 7) ─────────────────────────────────────────────────────
+// Priya linked her Thursday team meeting series to her curiosity-questions action after
+// session 4. The 23 Oct meeting has feedback (matching her own reflection: two questions, not
+// three); 30 Oct is coming up. Two earlier links show the stop and external-participant rules.
+// No transcripts are stored for work meetings: only the check, with Priya's own quotes.
+const meetingLinks: any[] = [];
+const occurrences: any[] = [];
+const TEAM = [{ name: 'Ana Ruiz', internal: true }, { name: 'Sam Osei', internal: true }, { name: 'Leo Brandt', internal: true }];
+const agreed = (list: Array<{ name: string; internal: boolean }>, at: string) => list.map((a) => ({ ...a, agreedAt: t(at).toISOString(), declinedAt: null }));
+meetingLinks.push(
+  { id: 'ml-priya-team', commitmentId: 'c-priya-4', coacheeId: 'priya', scope: 'series', calendarEventId: 'cal-priya-team', title: 'Weekly team meeting', cadence: 'Thursdays 14:00', createdAt: t('2025-10-21 17:30'), expiresAt: t('2026-01-31 00:00'), lastConfirmedAt: t('2025-10-21 17:30'), sharedWithCoach: true },
+  { id: 'ml-priya-ana', commitmentId: 'c-priya-2', coacheeId: 'priya', scope: 'series', calendarEventId: 'cal-priya-ana', title: 'One-to-one with Ana', cadence: 'Mondays 15:00', createdAt: t('2025-09-24 09:10'), expiresAt: t('2026-01-31 00:00'), stoppedAt: t('2025-10-06 17:12'), stopReason: 'set_aside', lastConfirmedAt: t('2025-09-24 09:10') },
+  { id: 'ml-priya-carrier', commitmentId: 'c-priya-3', coacheeId: 'priya', scope: 'single', calendarEventId: 'cal-priya-carrier-1015', title: 'Carrier review with Bluefin Freight', createdAt: t('2025-10-08 12:00'), expiresAt: t('2026-01-31 00:00'), lastConfirmedAt: t('2025-10-08 12:00') },
+);
+occurrences.push(
+  {
+    id: 'mo-priya-team-1023', linkId: 'ml-priya-team', scheduledAt: t('2025-10-23 14:00'), endsAt: t('2025-10-23 14:45'), attendees: agreed(TEAM, '2025-10-23 14:01'),
+    captureStatus: 'captured', noticeShownAt: t('2025-10-23 14:00'), checkedAt: t('2025-10-23 15:05'), aiProvider: 'sample',
+    check: {
+      attempted: 'partly',
+      summary: 'You asked two curiosity questions before sharing your view on the route changes, one short of the three you planned.',
+      evidence: [
+        { quote: "What's making this hard right now?", time: '04:12' },
+        { quote: 'What would you try if I weren’t in the room?', time: '09:40' },
+      ],
+      counts: { open_question: 3, curiosity_question: 2, feedback_framing: 0 },
+      words: 812,
+      dropped: 0,
+    },
+  },
+  { id: 'mo-priya-team-1030', linkId: 'ml-priya-team', scheduledAt: t('2025-10-30 14:00'), endsAt: t('2025-10-30 14:45'), attendees: TEAM.map((a) => ({ ...a, agreedAt: null, declinedAt: null })), captureStatus: 'scheduled' },
+  { id: 'mo-priya-ana-1006', linkId: 'ml-priya-ana', scheduledAt: t('2025-10-06 15:00'), endsAt: t('2025-10-06 15:30'), attendees: [{ name: 'Ana Ruiz', internal: true, agreedAt: null, declinedAt: null }], captureStatus: 'stopped' },
+  { id: 'mo-priya-carrier-1015', linkId: 'ml-priya-carrier', scheduledAt: t('2025-10-15 10:00'), endsAt: t('2025-10-15 11:00'), attendees: [{ name: 'Sam Osei', internal: true, agreedAt: null, declinedAt: null }, { name: 'Dana Whitlock (Bluefin Freight)', internal: false, agreedAt: null, declinedAt: null }], captureStatus: 'skipped_external', noticeShownAt: t('2025-10-15 10:00') },
+);
+message({ recipientId: 'priya', kind: 'meeting_feedback', channel: 'slack', sentAt: t('2025-10-23 15:05'), commitmentId: 'c-priya-4', text: 'Feedback from Weekly team meeting', data: { linkId: 'ml-priya-team', occurrenceId: 'mo-priya-team-1023' } });
+audit.push(
+  { id: 'audit-wm-1', actorId: 'priya', action: 'create', category: 'consent', label: 'Work meeting linked', object: 'Series "Weekly team meeting" (Thursdays 14:00) linked to an action; capture needs everyone\'s agreement each time', clientId: 'northwind', at: t('2025-10-21 17:30') },
+  { id: 'audit-wm-2', actorId: 'priya', action: 'create', category: 'consent', label: 'Work-meeting notice shown', object: '"Weekly team meeting" on Thu 23 Oct, to three colleagues', clientId: 'northwind', at: t('2025-10-23 14:00') },
+  { id: 'audit-wm-3', actorId: 'priya', action: 'create', category: 'access', label: 'Work meeting analyzed', object: '"Weekly team meeting" on Thu 23 Oct: the coachee\'s own words only; others\' words discarded, nothing stored but the feedback', clientId: 'northwind', at: t('2025-10-23 15:05') },
+  { id: 'audit-wm-4', actorId: 'priya', action: 'assign', category: 'access', label: 'Work-meeting feedback shared', object: '"Weekly team meeting" feedback shared with the coach', clientId: 'northwind', at: t('2025-10-23 15:20') },
+);
+
 // ── write ────────────────────────────────────────────────────────────────────────────
 
 async function main() {
   // Clear in dependency order so the seed can run on an existing database.
-  for (const model of ['managerNote', 'companionMessage', 'auditEvent', 'aiAnswer', 'sessionEvent', 'nextSessionPlan', 'practiceFeedback', 'languageMarker', 'coachNote', 'checkIn', 'commitment', 'summary', 'transcript', 'consent', 'session', 'goal', 'engagement', 'integration', 'rubric', 'user', 'client'] as const) {
+  for (const model of ['meetingOccurrence', 'meetingLink', 'managerNote', 'companionMessage', 'auditEvent', 'aiAnswer', 'sessionEvent', 'nextSessionPlan', 'practiceFeedback', 'languageMarker', 'coachNote', 'checkIn', 'commitment', 'summary', 'transcript', 'consent', 'session', 'goal', 'engagement', 'integration', 'rubric', 'user', 'client'] as const) {
     await (db as any)[model].deleteMany();
   }
   for (const c of CLIENTS) await db.client.create({ data: { ...c, redactionTerms: json(c.redactionTerms), nudgeDefaults: json(c.nudgeDefaults), featureFlags: json(c.featureFlags), activeRubricIds: json(c.activeRubricIds), mcpScopes: json(c.mcpScopes), createdAt: nextCreatedAt() } });
@@ -808,6 +852,8 @@ async function main() {
   await db.aiAnswer.createMany({ data: aiAnswers.map((a) => ({ ...a, citedSessionNumbers: json(a.citedSessionNumbers) })) });
   for (let i = 0; i < audit.length; i += 500) await db.auditEvent.createMany({ data: audit.slice(i, i + 500) });
   await db.companionMessage.createMany({ data: messages });
+  await db.meetingLink.createMany({ data: meetingLinks });
+  await db.meetingOccurrence.createMany({ data: occurrences.map((o) => ({ ...o, attendees: json(o.attendees), ...(o.check ? { check: json(o.check) } : {}) })) });
   // Grace's note for her next development conversation with Daniel (milestone 4).
   await db.managerNote.create({ data: { id: 'mnote-daniel-1', managerId: 'grace', coachId: 'daniel', createdAt: t('2025-10-20 15:30'), text: 'Your open questions are up a lot since August. In our next conversation, let’s look at one session where options came before the way forward and what made that work.' } });
 

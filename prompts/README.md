@@ -15,6 +15,7 @@ so a prompt describes what to write, not the JSON syntax.
 | `ask-the-ai.md` | 7. Ask the AI | Session review ("Ask about this session") and My practice ("Ask about your practice") |
 | `next-session-plan.md` | 8. Next-session plan | Plan page and plans list ("Draft plan"), and the day-before scheduler |
 | `practice-feedback.md` | 9. Practice feedback | Transcript upload and Zoom capture, after the draft is saved |
+| `work-meeting-check.md` | 10. Work-meeting check | A linked work meeting is processed; sees only the coachee's own words |
 
 Without an API key, tasks 7 and 8 fall back to code: Ask the AI shows the passages that best match
 the question, and the plan is drafted from a template. Both are labelled as sample output.
