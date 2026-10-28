@@ -1,0 +1,140 @@
+{
+  "_note": "Hand-written sample outputs for AI tasks 1 to 4, used only when no Anthropic API key is set, and only for prisma/seed-data/transcripts/amara-session-2.txt (matched by content hash). Not real model output; the review screen labels it as sample output. Action ids \"earlier-N\" stand for the coachee's Nth earlier open action.",
+  "transcriptSha256": "8c0fae6b7a11e8c758ec11fd868c04d155e30ea7e6ad6b02e7cf21c9a5e90806",
+  "outputs": {
+    "speaker-roles": {
+      "speakers": [
+        {
+          "label": "Daniel Okafor",
+          "role": "coach",
+          "confidence": "high",
+          "reason": "Matches the coach identity and asks the questions."
+        },
+        {
+          "label": "Amara Okoro",
+          "role": "coachee",
+          "confidence": "high",
+          "reason": "Matches the coachee identity and describes their own work."
+        }
+      ]
+    },
+    "session-summary": {
+      "headline": "Waiting pays off",
+      "headlineAccent": "Waiting",
+      "insights": [
+        {
+          "text": "When you let Kai make the weekend rota call, it worked better than your version, because he knows the drivers.",
+          "evidenceQuote": "Kai made the call on the weekend rota and it worked fine. Honestly better than mine.",
+          "evidenceTime": "05:31"
+        },
+        {
+          "text": "When a problem came up at stand-up, you stepped back in before hearing the lead's plan.",
+          "evidenceQuote": "The second time I stepped back in when the shipping delays came up.",
+          "evidenceTime": "00:22"
+        }
+      ],
+      "suggestedUpdates": [
+        {
+          "kind": "thinking",
+          "from": "If it goes wrong, it reflects on me",
+          "to": "My leads know things I don't",
+          "evidenceQuote": "I hold on because I worry it reflects on me if it goes wrong",
+          "evidenceTime": "06:40"
+        },
+        {
+          "kind": "behaving",
+          "from": "stepping in with the answer",
+          "to": "asking the owner for their plan first",
+          "evidenceQuote": "Asking Kai what he'd do, and then saying nothing for a minute.",
+          "evidenceTime": "03:02"
+        }
+      ],
+      "sensitivePassages": []
+    },
+    "action-extraction": {
+      "actions": [
+        {
+          "ifThenText": "At Monday's stand-up, when a problem comes up, I'll ask the lead who owns it for their plan before I say anything.",
+          "title": "Ask the owner for their plan first",
+          "shortTitle": "Owner's plan first",
+          "cueMoment": "Monday's stand-up",
+          "dueBy": "2025-10-27",
+          "evidenceQuote": "when a problem comes up, I'll ask the lead who owns it for their plan before I say anything",
+          "evidenceTime": "24:25",
+          "needsCoachConfirmation": false,
+          "confirmationNote": null,
+          "linkedInsight": 2
+        },
+        {
+          "ifThenText": "I'll hand Kai the weekend rota for the whole month.",
+          "title": "Hand Kai the rota for the month",
+          "shortTitle": "Rota to Kai",
+          "cueMoment": null,
+          "dueBy": null,
+          "evidenceQuote": "And maybe hand Kai the rota for the whole month. I need to think about that one.",
+          "evidenceTime": "25:05",
+          "needsCoachConfirmation": true,
+          "confirmationNote": "Amara said she needs to think about it, and no date was agreed.",
+          "linkedInsight": 1
+        }
+      ]
+    },
+    "action-follow-up": {
+      "updates": [
+        {
+          "actionId": "earlier-1",
+          "proposedStatus": "no_change",
+          "evidenceQuote": "I did it once. Kai made the call on the weekend rota and it worked fine.",
+          "evidenceTime": "05:31",
+          "note": "Amara let Kai make the call once this fortnight; no change from practiced."
+        },
+        {
+          "actionId": "earlier-2",
+          "proposedStatus": "practiced",
+          "evidenceQuote": "I let them run it twice.",
+          "evidenceTime": "00:22",
+          "note": "The leads ran the stand-up twice since the last session."
+        }
+      ]
+    },
+    "practice-feedback": {
+      "markers": [
+        {
+          "markerId": "icf.goal",
+          "observed": false,
+          "evidenceQuote": null,
+          "evidenceTime": null,
+          "note": "The coach didn't ask what Amara wanted from this session."
+        },
+        {
+          "markerId": "icf.evoke",
+          "observed": true,
+          "evidenceQuote": "What did you notice when it worked?",
+          "evidenceTime": "06:15",
+          "note": "Asked about Amara's own observation."
+        },
+        {
+          "markerId": "icf.design",
+          "observed": true,
+          "evidenceQuote": "What will you try before we meet again?",
+          "evidenceTime": "24:10",
+          "note": "Amara named the next step herself."
+        },
+        {
+          "markerId": "icf.measure",
+          "observed": false,
+          "evidenceQuote": null,
+          "evidenceTime": null,
+          "note": "No date or measure was agreed for either action."
+        },
+        {
+          "markerId": "grow.options",
+          "observed": false,
+          "evidenceQuote": null,
+          "evidenceTime": null,
+          "note": "Two actions were named at 24:25, but other options weren't explored before them."
+        }
+      ]
+    }
+  }
+}

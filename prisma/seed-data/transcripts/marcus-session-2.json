@@ -1,0 +1,14 @@
+{
+  "_note": "Synthetic transcript for the prototype. Not a real session.",
+  "session": "Marcus Lee, session 2 with Daniel Okafor",
+  "segments": [
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "00:06", "end": "00:20", "text": "Where would you like to start today?" },
+    { "speakerRole": "coachee", "speakerName": "Marcus", "start": "00:24", "end": "01:40", "text": "The handover review with Leah. I said the report was fine when it wasn't, and then I fixed it myself on Friday night." },
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "01:45", "end": "01:58", "text": "What stopped you from telling her what you saw?" },
+    { "speakerRole": "coachee", "speakerName": "Marcus", "start": "02:05", "end": "03:10", "text": "I think I see feedback as criticism. If I say it, I'm the bad guy. If I fix it, nobody has to feel bad." },
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "03:15", "end": "03:30", "text": "And what does fixing it yourself cost the team?" },
+    { "speakerRole": "coachee", "speakerName": "Marcus", "start": "03:36", "end": "04:20", "text": "Leah doesn't learn what good looks like, and I lose my Friday evenings. The same thing happened with the depot rota last month." },
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "18:40", "end": "18:55", "text": "What could you try before we next meet?" },
+    { "speakerRole": "coachee", "speakerName": "Marcus", "start": "19:02", "end": "19:50", "text": "In Wednesday's one-to-one with Leah, I'll tell her one specific thing about the report and ask how she'd change it. Maybe also something with the depot team, I'm not sure yet." }
+  ]
+}

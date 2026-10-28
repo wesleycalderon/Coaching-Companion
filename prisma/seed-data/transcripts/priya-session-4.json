@@ -1,0 +1,13 @@
+{
+  "_note": "Synthetic transcript for the prototype. Not a real session. Excerpt matches the design canvas.",
+  "session": "Priya Raman, session 4 with Daniel Okafor",
+  "segments": [
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "00:04", "end": "00:38", "text": "Last time you committed to asking before advising. What happened when you tried it?" },
+    { "speakerRole": "coachee", "speakerName": "Priya", "start": "00:41", "end": "02:10", "text": "Honestly, the release crunch took over. I dropped it for two weeks. When I did try it on Friday, the team came up with a better rollout plan than mine." },
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "02:15", "end": "02:22", "text": "What made Friday different?" },
+    { "speakerRole": "coachee", "speakerName": "Priya", "start": "02:30", "end": "03:05", "text": "I went in with questions written down. If I'd needed to answer first, I'd have shut it down." },
+    { "speakerRole": "coachee", "speakerName": "Priya", "start": "06:10", "end": "08:45", "text": "[Synthetic placeholder for a personal wellbeing topic the coachee raised. Flagged as sensitive and left out of the summary.]", "sensitive": true },
+    { "speakerRole": "coach", "speakerName": "Daniel", "start": "31:20", "end": "31:30", "text": "What would you like to try before we meet again?" },
+    { "speakerRole": "coachee", "speakerName": "Priya", "start": "31:48", "end": "32:30", "text": "Thursday's team meeting. Three curiosity questions before I give my view. And I should finally book that feedback conversation with Sam." }
+  ]
+}

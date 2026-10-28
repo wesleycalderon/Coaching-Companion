@@ -1,0 +1,413 @@
+// Coaching Session Companion prototype schema. Synthetic data only.
+//
+// Portability: SQLite for the prototype, kept portable to Postgres. Enumerations are
+// strings validated in TypeScript (src/lib/domain.ts) and lists are Json, so the same
+// schema works on both providers.
+//
+// Times: seeded times are wall-clock times in the user's own time zone, stored as UTC
+// and formatted in UTC (see src/lib/format.ts). Real time-zone handling arrives with the
+// nudge scheduler in milestone 3.
+//
+// Every content record carries an owner, a consent scope and an expiry, as the HANDOFF
+// asks. Here that is: the engagement (owner: the coachee), Consent rows per session,
+// and Transcript.deleteAfter.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id               String    @id
+  name             String
+  region           String // united_states | european_union | united_kingdom
+  capturePolicy    String // sessions | allowlist | companion_mode
+  // Raw transcript retention in days, 0 to 7. 0 deletes right after analysis.
+  retentionDays    Int
+  redactionOn      Boolean   @default(true)
+  redactionTerms   Json // string[]
+  nudgeDefaults    Json // NudgeDefaults in src/lib/domain.ts
+  featureFlags     Json // FeatureFlags in src/lib/domain.ts
+  activeRubricIds  Json // string[]
+  mcpScopes        Json // string[]: goals | commitments | summaries
+  minGroupSize     Int       @default(15)
+  coachingOffer    String    @default("add_on") // add_on | standalone | both
+  contractStart    DateTime?
+  contractEnd      DateTime?
+  // The fields above are the policy in force. These keep where it came from: what BTS set
+  // (null until first edited: the fields are BTS's) and what the client admin tightened.
+  btsPolicy          Json? // BtsPolicy in src/lib/policy.ts
+  clientRestrictions Json? // ClientRestrictions in src/lib/policy.ts
+  createdAt        DateTime  @default(now())
+
+  users        User[]
+  engagements  Engagement[]
+  integrations Integration[]
+  rubrics      Rubric[]
+  auditEvents  AuditEvent[]
+}
+
+model User {
+  id                String    @id
+  clientId          String? // null for BTS staff: coaches, coach managers, BTS admins
+  role              String // coachee | coach | coach_manager | client_admin | bts_admin | system
+  status            String    @default("active") // active | invited | removed
+  removedAt         DateTime? // removed people are deleted 30 days later
+  name              String
+  email             String    @unique
+  jobTitle          String?
+  timeZone          String    @default("UTC")
+  nudgeChannelOrder Json // string[]: slack | teams | email
+  quietHours        String?
+  preferences       Json? // per-role preferences, see src/lib/domain.ts
+  growthArea        String? // coaches only: the practice area the coach chose
+  managerId         String? // coaches only: their coach manager
+  slackUserId       String? // set when the companion first finds the person in Slack
+  createdAt         DateTime  @default(now())
+
+  client             Client?            @relation(fields: [clientId], references: [id])
+  manager            User?              @relation("CoachManager", fields: [managerId], references: [id])
+  managedCoaches     User[]             @relation("CoachManager")
+  notesWritten       ManagerNote[]      @relation("NoteAuthor")
+  notesReceived      ManagerNote[]      @relation("NoteCoach")
+  coacheeEngagements Engagement[]       @relation("CoacheeEngagements")
+  coachEngagements   Engagement[]       @relation("CoachEngagements")
+  consents           Consent[]
+  coachNotes         CoachNote[]
+  languageMarkers    LanguageMarker[]
+  practiceFeedback   PracticeFeedback[]
+  auditEvents        AuditEvent[]
+  askedQuestions     AiAnswer[]
+  approvedSummaries  Summary[]
+  companionMessages  CompanionMessage[]
+}
+
+model Engagement {
+  id               String    @id
+  clientId         String
+  coacheeId        String
+  coachId          String
+  start            DateTime
+  end              DateTime?
+  plannedSessions  Int       @default(8)
+  activeRubricIds  Json // string[]
+  captureAllowed   Boolean   @default(true) // on the allowlist, for clients that capture allowlisted sessions only
+
+  client    Client            @relation(fields: [clientId], references: [id])
+  coachee   User              @relation("CoacheeEngagements", fields: [coacheeId], references: [id])
+  coach     User              @relation("CoachEngagements", fields: [coachId], references: [id])
+  goals     Goal[]
+  sessions  Session[]
+  plans     NextSessionPlan[]
+  aiAnswers AiAnswer[]
+}
+
+// A Leadership Roadmap goal (Sounding Board), BTS's version of mindset, behaviour, impact
+// and results. The companion may suggest wording for ways of thinking and behaving; personal
+// impact and organizational outcomes are only ever chosen by the coachee.
+model Goal {
+  id              String  @id
+  engagementId    String
+  title           String // "Ask before advising"
+  theme           String // development theme in client aggregates, e.g. "Asking before advising"
+  capabilities    Json // string[]: leadership capabilities, e.g. Communication, Developing others
+  thinkingCurrent String // ways of thinking (mindset), current and future
+  thinkingFuture  String
+  behavingCurrent String // ways of behaving (behaviour), current and future
+  behavingFuture  String
+  personalImpact  Json // string[]: chosen by the coachee, e.g. "Build influence"
+  orgOutcomes     Json // { outcome, extent }[]: chosen by the coachee
+  status          String  @default("active") // active | achieved | archived
+
+  engagement  Engagement   @relation(fields: [engagementId], references: [id])
+  commitments Commitment[]
+}
+
+model Session {
+  id            String    @id
+  engagementId  String
+  number        Int
+  scheduledAt   DateTime
+  endsAt        DateTime
+  platform      String // zoom | teams | meet
+  meetingId     String?   @unique // the platform's meeting ID, used to match automatic transcripts
+  transcriptSource String? // zoom | upload: how the transcript arrived
+  captureStatus String // scheduled | consented | captured | paused | removed | no_capture
+  removedById   String?
+
+  engagement     Engagement         @relation(fields: [engagementId], references: [id])
+  consents       Consent[]
+  transcript     Transcript?
+  summary        Summary?
+  commitments    Commitment[]
+  coachNotes     CoachNote[]
+  languageMarker LanguageMarker[]
+  practice       PracticeFeedback?
+  plan           NextSessionPlan?   @relation("PlanForSession")
+  events         SessionEvent[]
+  aiAnswers      AiAnswer[]
+}
+
+model Consent {
+  id           String    @id
+  sessionId    String
+  userId       String? // null for a guest who joined the meeting
+  guestLabel   String?
+  channel      String // slack | teams | email | web | meeting
+  scope        String    @default("transcript") // transcript
+  joinedAt     DateTime?
+  grantedAt    DateTime?
+  revokedAt    DateTime?
+
+  session Session @relation(fields: [sessionId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+}
+
+model Transcript {
+  id          String   @id
+  sessionId   String   @unique
+  segments    Json // TranscriptSegment[]: speakerRole, speakerName, text, start, end, sensitive?
+  redacted    Boolean  @default(true)
+  deleteAfter DateTime
+
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model Summary {
+  id             String    @id
+  sessionId      String    @unique
+  headline       String?
+  headlineAccent String? // one word of the headline set in the accent colour
+  insights       Json // SummaryItem[]: insights and suggested Roadmap updates (src/lib/domain.ts)
+  status         String // draft | approved | suppressed
+  approvedById   String?
+  approvedAt     DateTime?
+  sensitiveSpans Json // { start, end, topic }[]
+  // AI provenance (milestone 2). aiDraft keeps the untouched AI output, for the coach edit rate.
+  aiProvider     String? // anthropic | sample (pre-written sample output, no API key)
+  aiModel        String?
+  aiDraft        Json?
+  followUps      Json? // FollowUpProposal[]: status updates to earlier actions, applied on approval
+  discussedActionIds Json? // string[]: earlier actions the transcript shows being discussed
+  speakerCheck   Json? // speakers the AI could not label with confidence
+
+  session    Session @relation(fields: [sessionId], references: [id])
+  approvedBy User?   @relation(fields: [approvedById], references: [id])
+}
+
+// A Roadmap action: a committed, tactical behaviour in if-then form. Earlier drafts called
+// these commitments; the table keeps that name. Check-in reflections are Roadmap results.
+model Commitment {
+  id                     String    @id
+  sessionId              String
+  goalId                 String?
+  ifThenText             String
+  title                  String // short form used in coach views
+  shortTitle             String // shortest form, used in the meeting panel
+  cueMoment              String?
+  dueBy                  DateTime?
+  createdAt              DateTime
+  status                 String // not_started | tried | practiced | habit | set_aside
+  setAsideReason         String?
+  needsCoachConfirmation Boolean   @default(false)
+  confirmationNote       String?
+  evidenceTime           String?
+  approved               Boolean   @default(true) // false while the summary is a draft
+  // When a later session's transcript showed the action being discussed (AI task 4, with a
+  // checked quote), set when the coach approves that session. Counts toward follow-up.
+  discussedAt            DateTime?
+
+  session  Session   @relation(fields: [sessionId], references: [id])
+  goal     Goal?     @relation(fields: [goalId], references: [id])
+  checkIns CheckIn[]
+}
+
+model CheckIn {
+  id             String    @id
+  commitmentId   String
+  channel        String // slack | teams | email
+  slot           String // midday | end_of_day
+  prompt         String
+  sentAt         DateTime
+  respondedAt    DateTime?
+  response       String? // tried | not_yet | set_aside | swapped | will_try
+  setAsideReason String? // time_pressure | less_relevant | other
+  reflectionText String?
+
+  commitment Commitment @relation(fields: [commitmentId], references: [id])
+}
+
+model CoachNote {
+  id           String @id
+  sessionId    String
+  coachId      String
+  observations String
+  showUpTags   Json // string[]: words from the coach's own notes, used for patterns
+
+  session Session @relation(fields: [sessionId], references: [id])
+  coach   User    @relation(fields: [coachId], references: [id])
+}
+
+model LanguageMarker {
+  id         String @id
+  sessionId  String
+  userId     String
+  marker     String // open_question | curiosity_question | feedback_framing
+  count      Int
+  per1kWords Float
+
+  session Session @relation(fields: [sessionId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+model PracticeFeedback {
+  id                 String   @id
+  sessionId          String   @unique
+  coachId            String
+  rubricId           String
+  markerResults      Json // { markerId, observed, evidence }[]
+  coachTalkShare     Int // percent
+  openQuestionShare  Int // percent of the coach's questions that were open
+  analysedAt         DateTime
+  aiProvider         String? // anthropic | sample; null for seeded feedback
+
+  session Session @relation(fields: [sessionId], references: [id])
+  coach   User    @relation(fields: [coachId], references: [id])
+  rubric  Rubric  @relation(fields: [rubricId], references: [id])
+}
+
+model NextSessionPlan {
+  id                String  @id
+  engagementId      String
+  forSessionId      String  @unique
+  openCommitmentIds Json // string[]
+  suggestedFocus    String
+  questions         Json // string[]
+  coacheeTopic      String? // what the coachee wants to bring, answered the day before
+  focusEvidence     Json? // { sourceId, quote, label }[]: what the suggested focus rests on
+  aiProvider        String? // anthropic | sample; null for seeded plans
+  draftedAt         DateTime?
+  editedAt          DateTime? // set when the coach saves their own changes
+
+  engagement Engagement @relation(fields: [engagementId], references: [id])
+  forSession Session    @relation("PlanForSession", fields: [forSessionId], references: [id])
+}
+
+model Rubric {
+  id       String  @id
+  name     String
+  usedFor  String
+  version  String
+  status   String // draft | published
+  clientId String? // null: available to every client
+  markers  Json // RubricMarker[]: id, name, shortName, check, kappa
+  draftMarkers Json? // unpublished changes to the markers
+  history  Json? // RubricVersion[]: earlier published versions
+  publishedAt DateTime?
+  sortOrder Int    @default(0)
+
+  client   Client?            @relation(fields: [clientId], references: [id])
+  feedback PracticeFeedback[]
+}
+
+model Integration {
+  id       String @id
+  clientId String
+  kind     String // zoom | slack | teams | calendar | google_meet | sounding_board
+  status   String // connected | needs_approval | not_connected | planned
+  detail   String
+  sortOrder Int   @default(0)
+
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+// Events inside one session (capture started, paused, notice shown). Shown to the coach.
+model SessionEvent {
+  id        String   @id
+  sessionId String
+  at        DateTime
+  action    String // EventBadge action
+  label     String
+  by        String
+
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+// Ask the AI exchanges (AI task 7). Answers always cite the sessions they used.
+model AiAnswer {
+  id           String   @id
+  scope        String   @default("session") // session | engagement | practice
+  engagementId String? // null for questions about the coach's own practice
+  sessionId    String?
+  askedById    String
+  question     String
+  answer       String
+  citedSessionNumbers Json // number[]
+  citations    Json? // { sessionNumber, label, quote }[]: every quote is checked against its source
+  aiProvider   String? // anthropic | sample; null for seeded answers
+  createdAt    DateTime
+
+  engagement Engagement? @relation(fields: [engagementId], references: [id])
+  session    Session?   @relation(fields: [sessionId], references: [id])
+  askedBy    User       @relation(fields: [askedById], references: [id])
+}
+
+// Consent, configuration, data access and deletion events. Append-only.
+model AuditEvent {
+  id       String   @id
+  actorId  String
+  action   String // EventBadge action: create | update | delete | publish | assign | unassign
+  category String // consent | config | access | delete | assignment | summary
+  label    String
+  object   String
+  clientId String?
+  at       DateTime
+
+  actor  User    @relation(fields: [actorId], references: [id])
+  client Client? @relation(fields: [clientId], references: [id])
+
+  @@index([at])
+}
+
+// Everything the companion sends a coachee (milestone 3), whatever the channel. Each message is
+// delivered to Slack when the Slack app is connected, or to the simulated chat in the web app.
+// Buttons in either place call the same handlers (src/lib/companion/respond.ts).
+model CompanionMessage {
+  id           String    @id
+  recipientId  String
+  // welcome | consent_request | pre_session_prompt | recap | nudge | check_in | set_aside_reason | set_aside_plan | ack
+  kind         String
+  channel      String // slack | teams | email: the coachee's first channel
+  deliveredVia String // slack | simulated
+  sentAt       DateTime
+  sessionId    String?
+  commitmentId String?
+  checkInId    String?
+  text         String // the message as plain text (also Slack's notification text)
+  data         Json? // kind-specific detail, e.g. a day label or the ack's status badge
+  response     Json? // what the coachee chose and wrote
+  respondedAt  DateTime?
+  slackChannel String?
+  slackTs      String?
+
+  recipient User @relation(fields: [recipientId], references: [id])
+
+  @@index([recipientId, sentAt])
+}
+
+// A note from a coach manager to one of their coaches, for their next development
+// conversation. Developmental only; never used to assign work.
+model ManagerNote {
+  id        String   @id
+  managerId String
+  coachId   String
+  text      String
+  createdAt DateTime
+
+  manager User @relation("NoteAuthor", fields: [managerId], references: [id])
+  coach   User @relation("NoteCoach", fields: [coachId], references: [id])
+}
