@@ -126,7 +126,7 @@ export async function saveReview(sessionId: string, _prev: FormState, formData: 
     // Milestone 3: the approved recap goes to the coachee's first channel (Slack, or the simulated chat).
     const { sendRecap } = await import('./companion/send');
     const sent = await sendRecap(sessionId);
-    return { message: `Approved. ${who} can now see the recap and actions${sent.deliveredVia === 'slack' ? ', and has it in Slack' : ''}.` };
+    return { message: `Approved. ${who} can now see the recap and actions${sent.deliveredVia === 'slack' ? ', and has it in Slack' : sent.deliveredVia === 'teams' ? ', and has it in Teams' : ''}.` };
   }
   if (intent === 'private') return { message: `Kept private. ${who} won't see this summary.` };
   return { message: 'Changes saved.' };

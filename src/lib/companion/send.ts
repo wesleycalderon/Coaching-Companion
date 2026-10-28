@@ -1,6 +1,6 @@
 // Composing and delivering companion messages. Every message is stored first (the outbox), then
-// delivered: to Slack when the Slack app is connected and Slack is the coachee's first channel,
-// otherwise to the simulated chat in the web app. Teams and email delivery are later milestones.
+// delivered: to Slack or Teams when that app is connected and is the coachee's first channel,
+// otherwise to the simulated chat in the web app. Email delivery is a later milestone.
 
 import type { Prisma } from '@prisma/client';
 import { db } from '../db';
@@ -12,6 +12,23 @@ let counter = 0;
 const newId = () => `cm-${Date.now().toString(36)}-${(counter++).toString(36)}`;
 
 export const slackEnabled = () => process.env.SLACK_ENABLED === 'true' && Boolean(process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN);
+export const teamsEnabled = () => process.env.TEAMS_ENABLED === 'true';
+
+/** The bot's app registration. Also reads the names Microsoft's Teams CLI writes (CLIENT_ID and so on). */
+export const teamsCredentials = () => ({
+  clientId: process.env.TEAMS_CLIENT_ID || process.env.CLIENT_ID || undefined,
+  clientSecret: process.env.TEAMS_CLIENT_SECRET || process.env.CLIENT_SECRET || undefined,
+  tenantId: process.env.TEAMS_TENANT_ID || process.env.TENANT_ID || undefined,
+});
+
+/** The Teams chat a coachee's messages go to. Prototype: whoever last installed or messaged the bot (you). */
+export async function teamsConversationFor(_userId: string) {
+  return db.teamsConversation.findFirst({ orderBy: { updatedAt: 'desc' } });
+}
+
+export async function teamsReady(userId: string) {
+  return teamsEnabled() && Boolean(await teamsConversationFor(userId));
+}
 
 export interface SendInput {
   recipientId: string;
@@ -28,20 +45,22 @@ export async function send(input: SendInput) {
   const user = await db.user.findUniqueOrThrow({ where: { id: input.recipientId } });
   const channel = asJson<string[]>(user.nudgeChannelOrder)[0] ?? 'email';
   const viaSlack = channel === 'slack' && slackEnabled();
+  const viaTeams = channel === 'teams' && (await teamsReady(input.recipientId));
   const message = await db.companionMessage.create({
     data: {
-      id: newId(), recipientId: input.recipientId, kind: input.kind, channel, deliveredVia: viaSlack ? 'slack' : 'simulated',
+      id: newId(), recipientId: input.recipientId, kind: input.kind, channel, deliveredVia: viaSlack ? 'slack' : viaTeams ? 'teams' : 'simulated',
       sentAt: input.sentAt ?? eventTime(), sessionId: input.sessionId, commitmentId: input.commitmentId, checkInId: input.checkInId,
       text: input.text, data: (input.data ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });
-  if (viaSlack) {
+  if (viaSlack || viaTeams) {
+    const app = viaSlack ? 'slack' : 'teams';
     try {
-      const { deliverToSlack } = await import('./slack');
-      await deliverToSlack(message.id);
+      if (viaSlack) await (await import('./slack')).deliverToSlack(message.id);
+      else await (await import('./teams')).deliverToTeams(message.id);
     } catch (e) {
       // Keep the message: the coachee still sees it in the web app.
-      console.error('[slack] delivery failed, kept in the simulated chat', e);
+      console.error(`[${app}] delivery failed, kept in the simulated chat`, e);
       await db.companionMessage.update({ where: { id: message.id }, data: { deliveredVia: 'simulated' } });
     }
   }

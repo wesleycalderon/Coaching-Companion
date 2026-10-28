@@ -51,8 +51,8 @@ export async function respond(messageId: string, input: CompanionInput, actorUse
       // STUB: BTS Studio engineering (production consent storage).
       const existing = s.consents.find((c) => c.userId === m.recipientId);
       const consentData = input.choice === 'allow' ? { grantedAt: now, revokedAt: null } : { grantedAt: null, revokedAt: now };
-      if (existing) await db.consent.update({ where: { id: existing.id }, data: { ...consentData, channel: m.deliveredVia === 'slack' ? 'slack' : 'web' } });
-      else await db.consent.create({ data: { id: `cons-${s.id}-${m.recipientId}`, sessionId: s.id, userId: m.recipientId, channel: m.deliveredVia === 'slack' ? 'slack' : 'web', ...consentData } });
+      if (existing) await db.consent.update({ where: { id: existing.id }, data: { ...consentData, channel: m.deliveredVia === 'slack' || m.deliveredVia === 'teams' ? m.deliveredVia : 'web' } });
+      else await db.consent.create({ data: { id: `cons-${s.id}-${m.recipientId}`, sessionId: s.id, userId: m.recipientId, channel: m.deliveredVia === 'slack' || m.deliveredVia === 'teams' ? m.deliveredVia : 'web', ...consentData } });
       const coachConsented = s.consents.some((c) => c.userId === s.engagement.coachId && c.grantedAt && !c.revokedAt);
       await db.session.update({ where: { id: s.id }, data: { captureStatus: input.choice === 'allow' ? (coachConsented ? 'consented' : 'scheduled') : 'no_capture' } });
       await db.auditEvent.create({

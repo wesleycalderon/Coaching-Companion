@@ -185,6 +185,20 @@ Open `/` for the screen index: every canvas artboard, its route, and which view 
 - The Roadmap schema alignment (an Insight table, a private flag on goals, capabilities on actions) is still to do; see HANDOFF.md.
 - No new dependencies.
 
+## Microsoft Teams delivery (after milestone 7)
+
+- Teams-first coachees (Halden) get companion messages as Adaptive Cards in Teams when `TEAMS_ENABLED=true`, rendered from the same view model as Slack (`src/lib/companion/teams.ts`). Buttons use `Action.Execute`; answers go through `respond()` and the card redraws in place. Forms (reflection, set-aside reason, plan, check-in times) open inside the card instead of Slack's modals.
+- The bot is hosted inside Next.js at `POST /api/messages` (a small adapter for the Teams SDK), so Teams and the web app share port 3000 and one tunnel.
+- New dependencies, approved: `@microsoft/teams.apps`, `@microsoft/teams.api` and `@microsoft/teams.cards`, pinned at 2.1.0. They pull in `@azure/msal-node`, which `npm audit` flags as high severity; it matters only for a public deployment.
+- New table `TeamsConversation` (who installed or messaged the bot) and `teamsConversationId`/`teamsActivityId` on companion messages; `deliveredVia` can now be `teams`, and consent given from a Teams card is recorded with channel `teams`.
+- Without app credentials (Agents Playground mode) the endpoint accepts unsigned requests, but only from this computer; requests through a tunnel are refused.
+- Setup: `teams/README.md`. `teams/make-package.mjs` builds the app package for a Developer Portal registration.
+
+### Checked
+
+- Against a mock of the Teams message service: the bot's hello reply, the proactive check-in card for Elena, "Tried it" redrawing the card with the reflection form, an empty reflection rejected with a message, a saved reflection plus the "Nice work" reply delivered to Teams, and a tunnelled request refused.
+- Not yet checked in Agents Playground or real Teams: running the Playground needs your OK, and real Teams needs a tenant.
+
 ## Live API check (Sonnet 5.5, `ANTHROPIC_MODEL` in `.env`)
 
 - Amara's session 2 through the Zoom simulator: all five tasks (speaker roles, summary, actions, follow-up, practice feedback) returned valid output; no quote failed the transcript check, nothing was dropped, one client term was redacted. The uncertain "hand Kai the rota" action came back flagged for coach confirmation.

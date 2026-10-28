@@ -34,7 +34,7 @@ export function ChatMessageBody({ view: v }: { view: MessageView }) {
       {v.title ? (
         <div className="row row--tight">
           <span className={`grow ${v.kind === 'check_in' || v.kind === 'set_aside_reason' || v.kind === 'set_aside_plan' || v.kind === 'reflection_prompt' ? 'dm-card__question' : 'dm-card__title'}`}>{v.title}</span>
-          {v.badge && v.kind === 'recap' ? <StatusBadge tone={v.badge.tone} label={v.badge.label} /> : null}
+          {v.badge && (v.kind === 'recap' || v.kind === 'meeting_feedback') ? <StatusBadge tone={v.badge.tone} label={v.badge.label} /> : null}
         </div>
       ) : null}
       {v.paragraphs.map((p, i) => <p key={i} className={v.kind === 'recap' ? 'fine-print' : 'text-body'}>{p}</p>)}
@@ -130,12 +130,12 @@ const TEST_OPTIONS: Array<[string, string]> = [
   ['scheduler_end_of_day', 'Run the 17:00 scheduler slot for everyone'],
 ];
 
-export function TestControls({ coacheeId, sentToSlack }: { coacheeId: string; sentToSlack: number }) {
+export function TestControls({ coacheeId, delivered, app }: { coacheeId: string; delivered: number; app: 'Slack' | 'Teams' }) {
   const [state, action] = useFormState(sendTest.bind(null, coacheeId), {} as ChatState & { done?: string });
   return (
     <form action={action} className="card card--pad card--stack preview-stage__note">
       <h2 className="heading-xsmall heading-reset">Prototype controls</h2>
-      <p className="fine-print">Send a message now instead of waiting for its moment. The scheduler normally runs at 12:00 and 17:00 in each coachee's time zone.{sentToSlack ? ` ${sentToSlack} messages in this chat were also delivered to Slack.` : ''}</p>
+      <p className="fine-print">Send a message now instead of waiting for its moment. The scheduler normally runs at 12:00 and 17:00 in each coachee's time zone.{delivered ? ` ${delivered} ${delivered === 1 ? 'message' : 'messages'} in this chat ${delivered === 1 ? 'was' : 'were'} also delivered to ${app}.` : ''}</p>
       <div className="field">
         <label className="ecb-form-label" htmlFor="what">Message to send</label>
         <select id="what" name="what" className="ecb-form-select">{TEST_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>

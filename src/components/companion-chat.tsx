@@ -3,7 +3,7 @@
 import { BotMessage, DayDivider, DmFrame } from '@/components/chat';
 import { ChatMessageBody, TestControls } from '@/components/companion-chat-client';
 import { db } from '@/lib/db';
-import { slackEnabled } from '@/lib/companion/send';
+import { slackEnabled, teamsReady } from '@/lib/companion/send';
 import { buildView, withDayLabels } from '@/lib/companion/view';
 import { asJson } from '@/lib/format';
 
@@ -12,13 +12,15 @@ export async function CompanionChat({ coacheeId, note }: { coacheeId: string; no
   const channel = asJson<string[]>(user.nudgeChannelOrder)[0] === 'teams' ? 'Teams' : 'Slack';
   const messages = await db.companionMessage.findMany({ where: { recipientId: coacheeId }, orderBy: [{ sentAt: 'asc' }, { id: 'asc' }] });
   const views = withDayLabels(await Promise.all(messages.map(buildView)));
-  const inSlack = messages.filter((m) => m.deliveredVia === 'slack').length;
-  const status = channel === 'Slack' && slackEnabled()
-    ? `Connected to Slack: new messages for ${user.name} are delivered there too${process.env.SLACK_TEST_USER_ID ? ' (to the test user)' : ''}, and answers from either place update the same records.`
-    : `Simulated ${channel} chat for ${user.name}. Buttons work and update the same records the coach sees.${channel === 'Slack' ? ' Connect the Slack app to deliver these to real Slack.' : ' Teams delivery is a later milestone.'}`;
+  const delivered = messages.filter((m) => m.deliveredVia === channel.toLowerCase()).length;
+  const connected = channel === 'Slack' ? slackEnabled() : await teamsReady(user.id);
+  const testUser = channel === 'Slack' ? Boolean(process.env.SLACK_TEST_USER_ID) : true;
+  const status = connected
+    ? `Connected to ${channel}: new messages for ${user.name} are delivered there too${testUser ? ' (to the test user)' : ''}, and answers from either place update the same records.`
+    : `Simulated ${channel} chat for ${user.name}. Buttons work and update the same records the coach sees. Connect the ${channel} app to deliver these to real ${channel}.`;
 
   return (
-    <DmFrame app={channel} note={note ?? status} after={<TestControls coacheeId={coacheeId} sentToSlack={inSlack} />}>
+    <DmFrame app={channel} note={note ?? status} after={<TestControls coacheeId={coacheeId} delivered={delivered} app={channel} />}>
       {views.length === 0 ? <p className="text-body text-subtle">No messages yet. Use the prototype controls below to send one.</p> : null}
       {views.map((v) => (
         <div key={v.id} className="stack stack--200">

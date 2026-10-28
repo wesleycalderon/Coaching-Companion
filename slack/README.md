@@ -39,6 +39,6 @@ slot** controls send a slot on demand instead.
 
 - Consent requests and "what do you want to bring" prompts are sent from the prototype
   controls; production sends them the evening before each session.
-- Teams and email delivery are later milestones; Teams-first coachees (Halden) use the
-  simulated chat.
+- Email delivery is a later milestone. Teams delivery is set up separately (`teams/README.md`);
+  without it, Teams-first coachees (Halden) use the simulated chat.
 - AI task 5 writes nudges when `ANTHROPIC_API_KEY` is set; otherwise a plain template is used.

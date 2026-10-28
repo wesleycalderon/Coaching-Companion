@@ -1,5 +1,5 @@
 // Starts the background parts of the companion once per server process: the Slack app
-// (Socket Mode) and the nudge scheduler. Called from src/instrumentation.ts.
+// (Socket Mode), the Teams app (served on /api/messages) and the nudge scheduler. Called from src/instrumentation.ts.
 import { slackEnabled } from './send';
 
 const g = globalThis as unknown as { __companionStarted?: boolean };
@@ -13,6 +13,11 @@ export async function startCompanion() {
     await startSlack().catch((e) => console.error('[slack] could not connect; messages stay in the web app', e));
   } else if (process.env.SLACK_ENABLED === 'true') {
     console.warn('[slack] SLACK_ENABLED is true but SLACK_BOT_TOKEN or SLACK_APP_TOKEN is missing');
+  }
+
+  if (process.env.TEAMS_ENABLED === 'true') {
+    const { startTeams } = await import('./teams');
+    await startTeams().catch((e) => console.error('[teams] could not start; messages stay in the web app', e));
   }
 
   if (process.env.COMPANION_SCHEDULER === 'true') {

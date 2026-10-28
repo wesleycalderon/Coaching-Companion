@@ -11,3 +11,7 @@ public/ds/
 src/ds/bundle.generated.js
 .DS_Store
 src/ds/types.d.ts
+
+# Teams app package built by teams/make-package.mjs
+teams/build/
+.env.teams

@@ -381,22 +381,24 @@ model AuditEvent {
 // delivered to Slack when the Slack app is connected, or to the simulated chat in the web app.
 // Buttons in either place call the same handlers (src/lib/companion/respond.ts).
 model CompanionMessage {
-  id           String    @id
-  recipientId  String
+  id                  String    @id
+  recipientId         String
   // welcome | consent_request | pre_session_prompt | recap | nudge | check_in | set_aside_reason | set_aside_plan | ack
-  kind         String
-  channel      String // slack | teams | email: the coachee's first channel
-  deliveredVia String // slack | simulated
-  sentAt       DateTime
-  sessionId    String?
-  commitmentId String?
-  checkInId    String?
-  text         String // the message as plain text (also Slack's notification text)
-  data         Json? // kind-specific detail, e.g. a day label or the ack's status badge
-  response     Json? // what the coachee chose and wrote
-  respondedAt  DateTime?
-  slackChannel String?
-  slackTs      String?
+  kind                String
+  channel             String // slack | teams | email: the coachee's first channel
+  deliveredVia        String // slack | teams | simulated
+  sentAt              DateTime
+  sessionId           String?
+  commitmentId        String?
+  checkInId           String?
+  text                String // the message as plain text (also Slack's notification text)
+  data                Json? // kind-specific detail, e.g. a day label or the ack's status badge
+  response            Json? // what the coachee chose and wrote
+  respondedAt         DateTime?
+  slackChannel        String?
+  slackTs             String?
+  teamsConversationId String?
+  teamsActivityId     String?
 
   recipient User @relation(fields: [recipientId], references: [id])
 
@@ -460,4 +462,15 @@ model MeetingOccurrence {
   link MeetingLink @relation(fields: [linkId], references: [id])
 
   @@index([linkId, scheduledAt])
+}
+
+// The Teams chat between the companion bot and a person who installed it or messaged it. The bot
+// needs this to message them first. Prototype: Teams-first coachees' messages go to the most
+// recent of these (you), since the seeded coachees have no Teams accounts.
+model TeamsConversation {
+  id             String   @id // the person's Teams user id
+  name           String
+  conversationId String
+  serviceUrl     String
+  updatedAt      DateTime @updatedAt
 }
