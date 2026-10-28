@@ -1,4 +1,4 @@
-// The BiTSy coaches this app offers, by their BiTSy agent id, and which one fits an action.
+// The BiTSy AI coaches (agents, not people) this app offers, by their BiTSy agent id, and which one fits an action.
 // Names and one-line descriptions only: each coach's method lives in BiTSy.
 
 export interface Coach {

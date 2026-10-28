@@ -9,7 +9,7 @@ import { endCoachingAction, proposeActionAction, sendCoachingMessageAction, shar
 import { db } from '@/lib/db';
 import { asJson, dayTime, firstName } from '@/lib/format';
 
-// Coaching guidance: one conversation with a BiTSy coach. Not on the canvas: flagged for design review.
+// Coaching guidance: one conversation with a BiTSy AI coach. Not on the canvas: flagged for design review.
 export default async function CoachingConversationPage({ params, searchParams }: { params: { id: string }; searchParams: { done?: string } }) {
   const path = `/me/coaching/${params.id}`;
   const persona = allow(['coachee']);
@@ -32,7 +32,7 @@ export default async function CoachingConversationPage({ params, searchParams }:
     <CoacheeShell userId={persona.userId} current="/me/coaching">
       <BackLink href="/me/coaching">Back to coaching guidance</BackLink>
       <div className="stack stack--100">
-        <span className="overline">BiTSy coach · {coach.name}</span>
+        <span className="overline">BiTSy AI coach · {coach.name}</span>
         <h1 className="participant-title">{conv.commitment ? 'Coaching on your action' : 'Talking it through'}</h1>
         {conv.commitment ? <p className="participant-lede">{conv.commitment.ifThenText}</p> : null}
       </div>
@@ -47,7 +47,7 @@ export default async function CoachingConversationPage({ params, searchParams }:
         </div>
         {brief ? (
           <details className="subtle-panel">
-            <summary className="text-small">What the coach was told</summary>
+            <summary className="text-small">What the AI coach was told</summary>
             <pre className="text-small pre-wrap">{brief.text}</pre>
           </details>
         ) : null}
@@ -66,7 +66,7 @@ export default async function CoachingConversationPage({ params, searchParams }:
         </div>
         {active ? (
           <>
-            <ActionForm action={sendCoachingMessageAction.bind(null, conv.id)} submitLabel="Send" pendingLabel="The coach is replying… this can take a minute" clearOnSuccess className="stack">
+            <ActionForm action={sendCoachingMessageAction.bind(null, conv.id)} submitLabel="Send" pendingLabel="The AI coach is replying… this can take a minute" clearOnSuccess className="stack">
               <div className="field">
                 <label className="ecb-form-label" htmlFor="co-msg">Your reply</label>
                 <textarea id="co-msg" name="message" className="ecb-form-input" rows={3} maxLength={2000} required />

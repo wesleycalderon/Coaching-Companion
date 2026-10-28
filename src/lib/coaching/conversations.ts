@@ -1,10 +1,10 @@
-// Coaching guidance: conversations between a coachee and a BiTSy coach about one of their
+// Coaching guidance: conversations between a coachee and a BiTSy AI coach (not a person) about one of their
 // actions. BiTSy does the coaching (sample replies when it isn't configured); this app briefs
-// the coach, keeps the turns, and routes any new action the coachee proposes to their coach.
+// the AI coach, keeps the turns, and routes any new action the coachee proposes to their human coach.
 //
-// Rules carried over from the prototype: the coachee sees exactly what the coach is told before
+// Rules carried over from the prototype: the coachee sees exactly what the AI coach is told before
 // anything is sent; conversations are private unless the coachee shares them; the AI never adds
-// actions (the coachee writes a proposal in their own words and the coach approves it).
+// actions (the coachee writes a proposal in their own words and their human coach approves it).
 
 import { randomUUID } from 'node:crypto';
 import { audit } from '../audit';
@@ -20,13 +20,13 @@ const newId = (p: string) => `${p}-${randomUUID().slice(0, 12)}`;
 
 export const coachingProvider = () => (bitsy.bitsyConfigured() ? 'bitsy' : 'sample') as 'bitsy' | 'sample';
 
-/** What the coach is told about the coachee and the action. Shown to the coachee before sending. */
+/** What the AI coach is told about the coachee and the action. Shown to the coachee before sending. */
 export async function buildBrief(coacheeId: string, commitmentId: string | null) {
   const user = await db.user.findUniqueOrThrow({ where: { id: coacheeId }, include: { client: true } });
   const engagement = await db.engagement.findFirst({ where: { coacheeId }, include: { coach: true } });
   const lines: string[] = [];
   const who = [user.name, user.jobTitle ? `${user.jobTitle}${user.client ? ` at ${user.client.name}` : ''}` : user.client?.name].filter(Boolean).join(', ');
-  // The BiTSy test account has its own name; this keeps the coach addressing the coachee.
+  // The BiTSy test account has its own name; this keeps the AI coach addressing the coachee.
   lines.push(`I'm ${who}. Please call me ${firstName(user.name)}.`);
   if (commitmentId) {
     const c = await db.commitment.findFirst({
@@ -87,14 +87,14 @@ export async function startCoaching(input: { coacheeId: string; commitmentId: st
         create: [
           { id: newId('ct'), role: 'brief', text: brief, createdAt: now },
           { id: newId('ct'), role: 'coachee', text: opening, createdAt: new Date(now.getTime() + 1) },
-          { id: newId('ct'), role: 'coach', text: reply || 'The coach sent an empty reply.', createdAt: new Date(now.getTime() + 2) },
+          { id: newId('ct'), role: 'coach', text: reply || 'The AI coach sent an empty reply.', createdAt: new Date(now.getTime() + 2) },
         ],
       },
     },
   });
   await audit({
     actorId: input.coacheeId, action: 'create', category: 'access', label: 'Coaching conversation started',
-    object: `With the BiTSy ${coach.name.toLowerCase()} coach${provider === 'sample' ? ' (sample mode, nothing sent)' : ': the coachee\'s name, role, one action and its latest status and feedback sent to BiTSy'}`,
+    object: `With the BiTSy ${coach.name.toLowerCase()} AI coach${provider === 'sample' ? ' (sample mode, nothing sent)' : ': the coachee\'s name, role, one action and its latest status and feedback sent to BiTSy'}`,
     clientId: user.clientId,
   });
   return { id };
@@ -112,13 +112,13 @@ export async function sendTurn(id: string, coacheeId: string, text: string) {
   try {
     reply = await coachReply(conv.id, conv.provider, conv.agentName, conv.bitsyConversationId, text);
   } catch (e) {
-    return { error: e instanceof bitsy.BitsyError ? e.message : "The coach couldn't reply. Try sending your message again." };
+    return { error: e instanceof bitsy.BitsyError ? e.message : "The AI coach couldn't reply. Try sending your message again." };
   }
   const now = eventTime();
   await db.coachingTurn.createMany({
     data: [
       { id: newId('ct'), conversationId: conv.id, role: 'coachee', text, createdAt: now },
-      { id: newId('ct'), conversationId: conv.id, role: 'coach', text: reply || 'The coach sent an empty reply.', createdAt: new Date(now.getTime() + 1) },
+      { id: newId('ct'), conversationId: conv.id, role: 'coach', text: reply || 'The AI coach sent an empty reply.', createdAt: new Date(now.getTime() + 1) },
     ],
   });
   return { ok: true as const };

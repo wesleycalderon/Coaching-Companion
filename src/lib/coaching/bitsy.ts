@@ -31,7 +31,7 @@ async function call(path: string, init: RequestInit & { token?: string } = {}) {
     });
   } catch (e) {
     const timedOut = e instanceof Error && e.name === 'TimeoutError';
-    throw new BitsyError(timedOut ? 'The coach took too long to reply. Try sending your message again.' : "We couldn't reach the coach. Check your connection and try again.");
+    throw new BitsyError(timedOut ? 'The AI coach took too long to reply. Try sending your message again.' : "We couldn't reach the AI coach. Check your connection and try again.");
   }
 }
 

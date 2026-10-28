@@ -15,7 +15,7 @@ Read `HANDOFF.md` before starting any work. It has the scope, sources, screen ma
 - The coach approves summaries and commitments before the coachee sees them.
 - Client admins see aggregates only, never below the minimum group size.
 - Work meetings are captured only when the coachee has linked that meeting or its recurring series to a commitment. Every occurrence shows a notice to all participants, pauses for anyone who hasn't agreed, and skips any occurrence with an external participant. Store and analyze only the coachee's own words.
-- Coaching guidance comes from BiTSy's coaching agents through BiTSy's API (`src/lib/coaching/`). Never copy BiTSy's prompts or coaching IP into this repo. New actions from a coaching conversation are proposals the coach approves.
+- Coaching guidance comes from BiTSy's AI coaching agents (AI, not human coaches; always label them as AI and keep "AI coach" distinct from the coachee's human coach) through BiTSy's API (`src/lib/coaching/`). Never copy BiTSy's prompts or coaching IP into this repo. New actions from a coaching conversation are proposals the coach approves.
 - Production auth, consent storage and retention jobs are stubs. Mark them `// STUB: BTS Studio engineering`.
 - Log consent, policy, data access and deletion events to the audit log.
 

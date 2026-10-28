@@ -1,7 +1,7 @@
 'use server';
 
-// Server actions for coaching guidance: the coachee starts a conversation with a BiTSy coach,
-// replies, ends it, shares it and proposes a new action; the coach approves or declines it.
+// Server actions for coaching guidance: the coachee starts a conversation with a BiTSy AI coach,
+// replies, ends it, shares it and proposes a new action; their human coach approves or declines it.
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -24,7 +24,7 @@ export async function startCoachingAction(_prev: FormState, fd: FormData): Promi
   const p = coachee();
   if (!p) return { error: 'Only coachees can start a coaching conversation.' };
   const agentName = text(fd, 'coach');
-  if (!COACHES.some((c) => c.id === agentName)) return { error: 'Choose a coach.' };
+  if (!COACHES.some((c) => c.id === agentName)) return { error: 'Choose an AI coach.' };
   const opening = text(fd, 'opening');
   if (opening.length > 2000) return { error: 'Keep your first message under 2,000 characters.' };
   const actionId = text(fd, 'action');

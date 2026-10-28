@@ -42,7 +42,7 @@ export default async function CoachingPage({ searchParams }: { searchParams: { a
         <p className="participant-lede">Talk an action through with one of BiTSy&apos;s AI coaches: practise it, plan it, or work out what&apos;s getting in the way. Only you see these conversations unless you share one with {coach}.</p>
       </div>
       {provider === 'sample' ? (
-        <div className="p-card row row--top text-body"><StatusBadge tone="neutral" label="Sample mode" /><span className="grow">BiTSy isn&apos;t connected, so coaches reply with pre-written sample answers. Nothing is sent anywhere.</span></div>
+        <div className="p-card row row--top text-body"><StatusBadge tone="neutral" label="Sample mode" /><span className="grow">BiTSy isn&apos;t connected, so the AI coaches reply with pre-written sample answers. Nothing is sent anywhere.</span></div>
       ) : null}
 
       {!choosing ? (
@@ -68,10 +68,10 @@ export default async function CoachingPage({ searchParams }: { searchParams: { a
         <section aria-labelledby="start-head" className="p-card stack">
           <div className="row row--tight"><h2 id="start-head" className="heading-small heading-reset grow">{chosen ? 'Get coaching on this action' : 'Talk something through'}</h2><RoleBadge label="AI" /></div>
           {chosen ? <p className="participant-body">{chosen.ifThenText}</p> : null}
-          <ActionForm action={startCoachingAction} submitLabel="Start the conversation" pendingLabel="Starting… the coach can take a minute to reply" className="stack" secondary={<Link className="ecb-btn-ghost" href="/me/coaching">Cancel</Link>}>
+          <ActionForm action={startCoachingAction} submitLabel="Start the conversation" pendingLabel="Starting… the AI coach can take a minute to reply" className="stack" secondary={<Link className="ecb-btn-ghost" href="/me/coaching">Cancel</Link>}>
             <input type="hidden" name="action" value={chosen?.id ?? ''} />
             <div className="field">
-              <label className="ecb-form-label" htmlFor="co-coach">Coach</label>
+              <label className="ecb-form-label" htmlFor="co-coach">AI coach</label>
               <select id="co-coach" name="coach" className="ecb-form-select" defaultValue={suggested}>
                 {[coachById(suggested), ...COACHES.filter((c) => c.id !== suggested)].map((c) => (
                   <option key={c.id} value={c.id}>{c.name}{c.id === suggested ? ' (suggested)' : ''}: {c.helps}</option>
@@ -83,7 +83,7 @@ export default async function CoachingPage({ searchParams }: { searchParams: { a
               <textarea id="co-open" name="opening" className="ecb-form-input" rows={3} maxLength={2000} placeholder={chosen ? 'For example: what got in the way last time, or what you’d like to practise.' : 'Describe the situation in a sentence or two.'} />
             </div>
             <details className="subtle-panel" open>
-              <summary className="text-small strong">What the coach will be told</summary>
+              <summary className="text-small strong">What the AI coach will be told</summary>
               <p className="fine-print">Sent with your first message{provider === 'sample' ? ' (in sample mode, nothing is sent)' : ' to BiTSy, BTS’s coaching service'}. Nothing else from your coaching is shared.</p>
               <pre className="text-small pre-wrap">{brief}</pre>
             </details>
