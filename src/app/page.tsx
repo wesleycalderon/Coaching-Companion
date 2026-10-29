@@ -21,11 +21,23 @@ const GROUPS: Array<{ title: string; screens: Array<[string, string, string, str
   {
     title: 'Work meetings (milestone 7, not on the canvas yet: for design review)',
     screens: [
-      ['M7', 'Linked meetings: link a meeting or series to an action', '/me/meetings', 'coachee'],
+      ['M7', 'My meetings: what the companion joins, and focusing one on an action', '/me/meetings', 'coachee'],
       ['M7', 'A linked series: feedback per meeting, trend, share, stop', '/me/meetings/ml-priya-team', 'coachee'],
       ['M7', 'Notice everyone sees in each meeting', '/meeting/mo-priya-team-1030/notice', 'coachee'],
       ['M7', 'Shared work-meeting feedback on the coachee profile', '/coach/coachees/priya', 'coach'],
       ['M7', 'Work-meeting capture setting', '/admin/clients/northwind/policies', 'bts-admin'],
+    ],
+  },
+  {
+    title: 'Companion setup (not on the canvas yet: for design review)',
+    screens: [
+      ['CS', 'Coach first sign-in: agree, link accounts, choose meetings', '/coach/welcome', 'coach-new'],
+      ['CS', 'Coach companion settings: agreement, accounts, series, next two weeks', '/coach/settings', 'coach'],
+      ['CS', "Feedback from the coach's own meetings", '/coach/practice#meetings', 'coach'],
+      ['CS', "A coach's own meeting series", '/coach/meetings/ml-daniel-community', 'coach'],
+      ['CS', 'Coachee companion settings (automatic)', '/me/settings', 'coachee'],
+      ['CS', 'Coachee companion settings (manual, companion mode client)', '/me/settings', 'coachee-companion'],
+      ['CS', 'Client admin: install Slack, Teams, Zoom and calendar', '/client/integrations', 'client-admin'],
     ],
   },
   {

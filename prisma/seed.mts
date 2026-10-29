@@ -190,10 +190,10 @@ const CLIENTS = [
 function integrationsFor(clientId: string, name: string, slack: string, teams: string) {
   const short = name.split(' ')[0];
   return [
-    { kind: 'zoom', status: 'connected', detail: 'BTS coaching account. Reads cloud transcripts of consented coaching sessions only.' },
+    { kind: 'zoom', status: 'connected', detail: `Lets the companion join ${short} work meetings that coachees have on, with a notice to everyone. Coaching sessions run on each coach's own linked Zoom.` },
     { kind: 'slack', status: slack, detail: `${short} workspace. Sends recaps and nudges by direct message. Reads only replies sent to the companion.` },
     { kind: 'teams', status: teams, detail: 'Installs the companion into scheduled coaching-session chats to read transcripts after the meeting.' },
-    { kind: 'calendar', status: 'connected', detail: 'Reads meeting titles and times for coachees who allow it, to time check-ins.' },
+    { kind: 'calendar', status: 'connected', detail: 'Coachees link their own calendar. Reads meeting titles, times and who is invited, to list meetings and time check-ins.' },
     { kind: 'google_meet', status: 'planned', detail: 'Planned for a later release.' },
     { kind: 'sounding_board', status: 'connected', detail: "Saves approved insights and commitments to each coachee's Leadership Roadmap." },
   ].map((x, i) => ({ ...x, id: `${clientId}-${x.kind}`, clientId, sortOrder: i }));
@@ -201,16 +201,16 @@ function integrationsFor(clientId: string, name: string, slack: string, teams: s
 
 // ── people ───────────────────────────────────────────────────────────────────────────
 
-const COACHEE_PREFS = { midday: '12:00', endOfDay: '17:00', useCalendar: true, capturePreference: 'ask' };
+const COACHEE_PREFS = { midday: '12:00', endOfDay: '17:00', useCalendar: true };
 const COACH_DONE = {
-  onboardingComplete: true, introRead: true, zoomConnected: true, calendarConnected: true,
+  onboardingComplete: true, introRead: true,
   reviewReminder: '24h', reminderChannel: 'email', showPracticeFeedback: true, draftPlans: true,
 };
 
 type NewUser = {
   id: string; role: string; name: string; email: string; clientId?: string | null; status?: string;
   jobTitle?: string; timeZone?: string; nudgeChannelOrder?: string[]; quietHours?: string;
-  preferences?: unknown; growthArea?: string | null; managerId?: string | null;
+  preferences?: unknown; growthArea?: string | null; managerId?: string | null; captureMode?: string;
 };
 const users: NewUser[] = [];
 const addUser = (u: NewUser) => { users.push(u); return u.id; };
@@ -223,12 +223,12 @@ addUser({ id: 'grace', role: 'coach_manager', name: 'Grace Mwangi', email: 'grac
 addUser({ id: 'daniel', role: 'coach', name: 'Daniel Okafor', email: 'daniel.okafor@bts.example', timeZone: 'America/Chicago', nudgeChannelOrder: ['email'], preferences: COACH_DONE, growthArea: 'Exploring options before the way forward', managerId: 'grace' });
 addUser({ id: 'hannah', role: 'client_admin', status: 'invited', clientId: 'northwind', name: 'Hannah Weiss', email: 'hannah.weiss@northwind.example', nudgeChannelOrder: ['email'] });
 addUser({ id: 'owen', role: 'client_admin', clientId: 'northwind', name: 'Owen Price', email: 'owen.price@northwind.example', nudgeChannelOrder: ['email'] });
-addUser({ id: 'elena', role: 'coachee', clientId: 'halden', name: 'Elena Duarte', email: 'elena.duarte@halden.example', jobTitle: 'Head of client reporting', timeZone: 'Europe/Lisbon', nudgeChannelOrder: ['teams', 'email'], preferences: COACHEE_PREFS });
+addUser({ id: 'elena', role: 'coachee', clientId: 'halden', name: 'Elena Duarte', email: 'elena.duarte@halden.example', jobTitle: 'Head of client reporting', timeZone: 'Europe/Lisbon', nudgeChannelOrder: ['teams', 'email'], preferences: COACHEE_PREFS, captureMode: 'manual' });
 addUser({ id: 'tom', role: 'coachee', clientId: 'brightline', name: 'Tom Becker', email: 'tom.becker@brightline.example', jobTitle: 'Clinic operations manager', timeZone: 'America/New_York', nudgeChannelOrder: ['slack', 'email'], preferences: COACHEE_PREFS });
 addUser({ id: 'aiko', role: 'coach', name: 'Aiko Tanaka', email: 'aiko.tanaka@bts.example', timeZone: 'America/Chicago', nudgeChannelOrder: ['email'], preferences: COACH_DONE, growthArea: 'Agreeing how progress is measured', managerId: 'grace' });
 addUser({
   id: 'luis', role: 'coach', name: 'Luis Ortega', email: 'luis.ortega@bts.example', timeZone: 'America/Chicago', nudgeChannelOrder: ['email'], growthArea: null, managerId: 'grace',
-  preferences: { onboardingComplete: false, introRead: true, zoomConnected: true, calendarConnected: false, reviewReminder: '24h', reminderChannel: 'email', showPracticeFeedback: true, draftPlans: true },
+  preferences: { onboardingComplete: false, introRead: false, reviewReminder: '24h', reminderChannel: 'email', showPracticeFeedback: true, draftPlans: true },
 });
 addUser({ id: 'sofia', role: 'coach', name: 'Sofia Brandt', email: 'sofia.brandt@bts.example', nudgeChannelOrder: ['email'], preferences: COACH_DONE });
 addUser({ id: 'kwame', role: 'coach', name: 'Kwame Asante', email: 'kwame.asante@bts.example', nudgeChannelOrder: ['email'], preferences: COACH_DONE });
@@ -814,18 +814,75 @@ audit.push(
   { id: 'audit-wm-4', actorId: 'priya', action: 'assign', category: 'access', label: 'Work-meeting feedback shared', object: '"Weekly team meeting" feedback shared with the coach', clientId: 'northwind', at: t('2025-10-23 15:20') },
 );
 
+// ── companion setup ──────────────────────────────────────────────────────────────────
+// Everyone with an engagement has agreed to use the companion, except Luis (first sign-in) and
+// Jun (no coach yet). Daniel links BTS Slack, his own Zoom and calendar; coachees link their
+// company's Slack or Teams. Daniel turned off the companion for Tom's sessions; Elena chooses
+// her meetings herself (manual). Northwind's admin installed its tools.
+const agreements: any[] = [];
+const accountLinks: any[] = [];
+const captureRules: any[] = [];
+const acct = (userId: string, provider: string, workspace: string, label: string, at: Date) => {
+  const u = users.find((x) => x.id === userId)!;
+  accountLinks.push({ id: `acct-${userId}-${provider}`, userId, provider, workspace, externalId: `${provider}-${userId}`, displayName: `${u.email} · ${label}`, status: 'linked', linkedAt: at });
+};
+const SHORT: Record<string, string> = { northwind: 'Northwind', halden: 'Halden', brightline: 'Brightline' };
+for (const u of users) {
+  const e = engagements.find((x) => x.coacheeId === u.id || x.coachId === u.id);
+  if (!e || u.id === 'luis') continue;
+  const at = u.role === 'coach' ? t('2025-07-15 09:00') : addDays(e.start, -2);
+  agreements.push({ id: `agree-${u.id}`, userId: u.id, version: '2025-10', channel: u.role === 'coach' ? 'web' : u.clientId === 'halden' ? 'teams' : 'slack', agreedAt: at });
+  if (u.role === 'coach') {
+    if (u.id === 'daniel') acct('daniel', 'slack', 'bts', 'BTS Slack', at);
+    acct(u.id, 'zoom', 'own', 'your own Zoom', at);
+    acct(u.id, 'calendar', 'own', 'your own Calendar', at);
+  } else if (u.clientId) {
+    const chat = u.clientId === 'halden' ? 'teams' : 'slack';
+    acct(u.id, chat, u.clientId, `${SHORT[u.clientId]} ${chat === 'teams' ? 'Microsoft Teams' : 'Slack'}`, at);
+    if (['priya', 'elena', 'marcus', 'amara'].includes(u.id) || u.name === DEMO_COACHEE) acct(u.id, 'calendar', u.clientId, `${SHORT[u.clientId]} Calendar`, at);
+  }
+}
+captureRules.push(
+  { id: 'rule-daniel-tom', userId: 'daniel', engagementId: 'eng-tom', choice: 'off', createdAt: t('2025-10-17 09:00') },
+  { id: 'rule-priya-team', userId: 'priya', seriesId: 'cal-priya-team', choice: 'on', createdAt: t('2025-10-21 17:30') },
+  { id: 'rule-elena-sessions', userId: 'elena', engagementId: 'eng-elena', choice: 'on', createdAt: t('2025-08-06 09:00') },
+);
+audit.push(
+  { id: 'audit-setup-1', actorId: 'daniel', action: 'unassign', category: 'consent', label: 'Companion turned off', object: 'Coaching sessions with Tom Becker (series)', clientId: null, at: t('2025-10-17 09:00') },
+  { id: 'audit-setup-2', actorId: 'owen', action: 'create', category: 'config', label: 'Integration installed', object: 'Slack installed for Northwind Logistics by its client admin', clientId: 'northwind', at: t('2025-08-20 10:00') },
+);
+// Daniel's own meeting: the companion joined last week's community call (his words only).
+meetingLinks.push({ id: 'ml-daniel-community', commitmentId: null, coacheeId: 'daniel', ownerRole: 'coach', origin: 'automatic', scope: 'series', calendarEventId: 'cal-daniel-community', title: 'Coach community call', cadence: 'Wednesdays 16:00', createdAt: t('2025-10-15 09:00'), expiresAt: null, lastConfirmedAt: t('2025-10-15 09:00') });
+const COMMUNITY = [{ name: 'Aiko Tanaka', internal: true }, { name: 'Sofia Brandt', internal: true }, { name: 'Kwame Asante', internal: true }];
+occurrences.push({
+  id: 'mo-daniel-community-1022', linkId: 'ml-daniel-community', scheduledAt: t('2025-10-22 16:00'), endsAt: t('2025-10-22 16:45'), attendees: agreed(COMMUNITY, '2025-10-22 16:01'),
+  captureStatus: 'captured', noticeShownAt: t('2025-10-22 16:00'), checkedAt: t('2025-10-22 17:00'), aiProvider: 'sample',
+  check: {
+    attempted: 'yes',
+    summary: 'You asked the group what they had already tried and for more options before settling on one, then proposed trying two of them.',
+    evidence: [
+      { quote: 'What have you each tried so far when that happens?', time: '00:52' },
+      { quote: 'What else could we try before we settle on one approach?', time: '01:25' },
+    ],
+    counts: { open_question: 3, curiosity_question: 1, feedback_framing: 0 },
+    words: 96,
+    dropped: 0,
+  },
+});
+
 // ── write ────────────────────────────────────────────────────────────────────────────
 
 async function main() {
   // Clear in dependency order so the seed can run on an existing database.
-  for (const model of ['coachingTurn', 'coachingConversation', 'meetingOccurrence', 'meetingLink', 'managerNote', 'companionMessage', 'auditEvent', 'aiAnswer', 'sessionEvent', 'nextSessionPlan', 'practiceFeedback', 'languageMarker', 'coachNote', 'checkIn', 'commitment', 'summary', 'transcript', 'consent', 'session', 'goal', 'engagement', 'integration', 'rubric', 'user', 'client'] as const) {
+  for (const model of ['captureRule', 'accountLink', 'companionAgreement', 'coachingTurn', 'coachingConversation', 'meetingOccurrence', 'meetingLink', 'managerNote', 'companionMessage', 'auditEvent', 'aiAnswer', 'sessionEvent', 'nextSessionPlan', 'practiceFeedback', 'languageMarker', 'coachNote', 'checkIn', 'commitment', 'summary', 'transcript', 'consent', 'session', 'goal', 'engagement', 'integration', 'rubric', 'user', 'client'] as const) {
     await (db as any)[model].deleteMany();
   }
   for (const c of CLIENTS) await db.client.create({ data: { ...c, redactionTerms: json(c.redactionTerms), nudgeDefaults: json(c.nudgeDefaults), featureFlags: json(c.featureFlags), activeRubricIds: json(c.activeRubricIds), mcpScopes: json(c.mcpScopes), createdAt: nextCreatedAt() } });
   for (const c of CLIENTS) {
     const slack = c.id === 'orrin' ? 'not_connected' : 'connected';
     const teams = c.id === 'halden' ? 'connected' : 'needs_approval';
-    await db.integration.createMany({ data: integrationsFor(c.id, c.name, slack, teams) });
+    // Northwind's client admin installed its tools; BTS set up the others.
+    await db.integration.createMany({ data: integrationsFor(c.id, c.name, slack, teams).map((i) => (i.status === 'connected' ? { ...i, installedById: c.id === 'northwind' && ['slack', 'calendar', 'zoom'].includes(i.kind) ? 'owen' : 'noor', installedAt: t('2025-08-20 10:00') } : i)) });
   }
   for (const r of RUBRICS) await db.rubric.create({ data: { ...r, markers: json(r.markers) } });
   // Users without a manager first, so the manager relation resolves.
@@ -854,6 +911,9 @@ async function main() {
   await db.companionMessage.createMany({ data: messages });
   await db.meetingLink.createMany({ data: meetingLinks });
   await db.meetingOccurrence.createMany({ data: occurrences.map((o) => ({ ...o, attendees: json(o.attendees), ...(o.check ? { check: json(o.check) } : {}) })) });
+  await db.companionAgreement.createMany({ data: agreements });
+  await db.accountLink.createMany({ data: accountLinks });
+  await db.captureRule.createMany({ data: captureRules });
   // Grace's note for her next development conversation with Daniel (milestone 4).
   await db.managerNote.create({ data: { id: 'mnote-daniel-1', managerId: 'grace', coachId: 'daniel', createdAt: t('2025-10-20 15:30'), text: 'Your open questions are up a lot since August. In our next conversation, let’s look at one session where options came before the way forward and what made that work.' } });
 

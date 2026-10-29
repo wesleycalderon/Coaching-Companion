@@ -13,6 +13,7 @@ import { db } from './db';
 import { day, firstName } from './format';
 import { currentPersona } from './persona';
 import type { FormState } from './session-actions';
+import { setRule } from './companion-setup';
 import { answerNotice, confirmSeries, isActive, linkMeeting, processOccurrence, showNotice, stopLink, type Attendee } from './work-meetings';
 
 const text = (fd: FormData, name: string) => String(fd.get(name) ?? '').trim();
@@ -22,9 +23,20 @@ function coachee() {
   return p.role === 'coachee' ? p : null;
 }
 
+/** The meeting's owner: a coachee, or a coach for their own meetings. */
+function owner() {
+  const p = currentPersona();
+  return p.role === 'coachee' || p.role === 'coach' ? p : null;
+}
+
 function refresh(linkId?: string) {
-  revalidatePath('/me/meetings');
-  if (linkId) revalidatePath(`/me/meetings/${linkId}`);
+  for (const base of ['/me/meetings', '/coach/meetings']) {
+    revalidatePath(base);
+    if (linkId) revalidatePath(`${base}/${linkId}`);
+  }
+  revalidatePath('/me/settings');
+  revalidatePath('/coach/settings');
+  revalidatePath('/coach/practice');
 }
 
 export async function linkMeetingAction(_prev: FormState, fd: FormData): Promise<FormState> {
@@ -38,7 +50,7 @@ export async function linkMeetingAction(_prev: FormState, fd: FormData): Promise
 }
 
 async function ownLink(linkId: string) {
-  const p = coachee();
+  const p = owner();
   if (!p) return null;
   return db.meetingLink.findFirst({ where: { id: linkId, coacheeId: p.userId }, include: { coachee: true } });
 }
@@ -46,9 +58,11 @@ async function ownLink(linkId: string) {
 export async function stopLinkAction(linkId: string, _prev: FormState, _fd: FormData): Promise<FormState> {
   const link = await ownLink(linkId);
   if (!link) return { error: "We couldn't find this link." };
+  // Stopping is a choice in the owner's settings, so the meeting isn't joined again automatically.
+  await setRule(link.coacheeId, link.scope === 'series' ? { seriesId: link.calendarEventId } : { seriesId: link.calendarEventId, at: (await db.meetingOccurrence.findFirst({ where: { linkId: link.id }, orderBy: { scheduledAt: 'desc' } }))?.scheduledAt ?? undefined }, 'off');
   await stopLink(link.id, 'coachee', link.coacheeId);
   refresh(link.id);
-  redirect(`/me/meetings/${link.id}?done=stopped`);
+  redirect(`${link.ownerRole === 'coach' ? '/coach' : '/me'}/meetings/${link.id}?done=stopped`);
 }
 
 export async function keepSeriesAction(linkId: string, _prev: FormState, _fd: FormData): Promise<FormState> {
@@ -78,7 +92,7 @@ export async function shareSeriesAction(linkId: string, share: boolean, _prev: F
 // ── The notice and the meeting (prototype controls) ─────────────────────────────────
 
 async function ownOccurrence(occurrenceId: string) {
-  const p = coachee();
+  const p = owner();
   if (!p) return null;
   return db.meetingOccurrence.findFirst({ where: { id: occurrenceId, link: { coacheeId: p.userId } }, include: { link: true } });
 }
@@ -109,9 +123,11 @@ export async function simulateMeetingAction(occurrenceId: string, _prev: FormSta
   const o = await ownOccurrence(occurrenceId);
   if (!o) return { error: "We couldn't find this meeting." };
   const user = await db.user.findUniqueOrThrow({ where: { id: o.link.coacheeId } });
-  const content = o.link.calendarEventId === 'cal-priya-team'
-    ? readFileSync(join(process.cwd(), 'prisma/seed-data/transcripts/priya-team-meeting.txt'), 'utf8')
-    : genericTranscript(user.name, (o.attendees as unknown as Attendee[]).map((a) => a.name));
+  const seeded: Record<string, string> = { 'cal-priya-team': 'priya-team-meeting.txt', 'cal-daniel-community': 'daniel-community-call.txt' };
+  const others = (o.attendees as unknown as Attendee[]).map((a) => a.name);
+  const content = seeded[o.link.calendarEventId]
+    ? readFileSync(join(process.cwd(), 'prisma/seed-data/transcripts', seeded[o.link.calendarEventId]), 'utf8')
+    : o.link.ownerRole === 'coach' ? coachTranscript(user.name, others) : genericTranscript(user.name, others);
   const r = await processOccurrence({ occurrenceId: o.id, content, fileName: 'meeting.txt', actorId: user.id });
   refresh(o.linkId);
   if ('error' in r) return { error: r.error };
@@ -146,11 +162,25 @@ function genericTranscript(coachee: string, others: string[]) {
   ].join('\n');
 }
 
+/** A short synthetic internal meeting for a coach without a seeded transcript. */
+function coachTranscript(coach: string, others: string[]) {
+  const other = others[0] ?? 'A colleague';
+  return [
+    `[00:00:04] ${coach}: Thanks for making time. What would make this hour useful for you?`,
+    `[00:00:18] ${other}: I'd like to talk through the onboarding plan for new coaches.`,
+    `[00:00:35] ${coach}: What options have you looked at so far?`,
+    `[00:00:50] ${other}: Pairing them with a mentor, or a shorter first cohort.`,
+    `[00:01:12] ${coach}: What else could we try before we pick one?`,
+    `[00:01:30] ${other}: We could ask last year's cohort what helped.`,
+    `[00:01:48] ${coach}: Let's ask them this week and choose next Tuesday.`,
+  ].join('\n');
+}
+
 /** Local development: send the monthly keep-or-stop prompt now instead of after 30 days. */
 export async function sendReviewNowAction(linkId: string, _prev: FormState, _fd: FormData): Promise<FormState> {
   const link = await ownLink(linkId);
   if (!link || link.scope !== 'series' || !isActive(link)) return { error: 'Only an active series gets the monthly check.' };
   const { send } = await import('./companion/send');
-  await send({ recipientId: link.coacheeId, kind: 'meeting_review', commitmentId: link.commitmentId, text: `Keep linking ${link.title}?`, data: { linkId: link.id } });
+  await send({ recipientId: link.coacheeId, kind: 'meeting_review', commitmentId: link.commitmentId ?? undefined, text: `Keep linking ${link.title}?`, data: { linkId: link.id } });
   return { message: 'Sent. It appears in your companion chat, and in Slack when it’s connected.' };
 }

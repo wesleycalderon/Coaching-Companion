@@ -29,24 +29,26 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
   const active = links.filter((l) => !finished(l));
   const stopped = links.filter(finished);
   const calendar = calendarFor(user);
-  const linkedIds = new Set(active.map((l) => l.calendarEventId));
+  const linkedIds = new Set(active.filter((l) => l.commitmentId).map((l) => l.calendarEventId));
   const free = calendar.filter((e) => !linkedIds.has(e.id));
   const latestCaptured = (l: (typeof links)[number]) => [...l.occurrences].reverse().find((o) => o.captureStatus === 'captured');
 
   return (
     <CoacheeShell userId={user.id} current="/me/meetings">
       <div className="stack stack--100">
-        <h1 className="participant-title">Linked meetings</h1>
-        <p className="participant-lede">Link a work meeting to one of your actions and get feedback on your own words. Only you see it unless you share it with {coach}.</p>
+        <h1 className="participant-title">My meetings</h1>
+        <p className="participant-lede">The companion joins the work meetings your settings have on and gives you feedback on your own words. Only you see it unless you share it with {coach}.</p>
+        <Link className="text-body" href="/me/settings">Choose which meetings the companion joins</Link>
       </div>
 
       {!on ? (
-        <div className="p-card"><p className="text-body">{short} has turned off work-meeting capture, so meetings can&apos;t be linked. Your coaching sessions work as before.</p></div>
+        <div className="p-card"><p className="text-body">{short} has turned off work-meeting capture, so the companion doesn&apos;t join your work meetings. Your coaching sessions work as before.</p></div>
       ) : (
         <section aria-labelledby="lk-head" className="p-card stack">
-          <h2 id="lk-head" className="heading-small heading-reset">Link a meeting</h2>
+          <h2 id="lk-head" className="heading-small heading-reset">Focus a meeting on an action</h2>
+          <p className="text-body">Meetings that are on are checked against all the actions you&apos;re practicing. Focus one on a single action for feedback on just that action.</p>
           {actions.length === 0 ? <p className="text-body">You have no actions you&apos;re still practicing. New ones appear after your coach approves a recap.</p> : (
-            <ActionForm action={linkMeetingAction} submitLabel="Link this meeting" pendingLabel="Linking…" className="stack">
+            <ActionForm action={linkMeetingAction} submitLabel="Focus on this action" pendingLabel="Saving…" className="stack">
               <div className="grid grid--2">
                 <div className="field">
                   <label className="ecb-form-label" htmlFor="lm-action">Your action</label>
@@ -74,7 +76,7 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
                 <li>Everyone in the meeting sees a notice each time, and capture pauses for anyone who hasn&apos;t agreed.</li>
                 <li>A meeting with anyone from outside {short} is never captured.</li>
                 <li>Only your own words are analyzed. Everything anyone else says is discarded right after the meeting and never stored.</li>
-                <li>A series stays linked until you stop it, the action becomes a habit or is set aside, or your coaching ends. We check with you every month.</li>
+                <li>Focusing a meeting turns the companion on for it. The focus ends when you stop it, the action becomes a habit or is set aside, or your coaching ends. We check with you every month.</li>
               </ul>
             </ActionForm>
           )}
@@ -83,8 +85,8 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
       )}
 
       <section aria-labelledby="ac-head" className="p-card stack">
-        <h2 id="ac-head" className="heading-small heading-reset">Linked now</h2>
-        {active.length === 0 ? <p className="text-body">Nothing is linked.</p> : (
+        <h2 id="ac-head" className="heading-small heading-reset">On now</h2>
+        {active.length === 0 ? <p className="text-body">The companion isn&apos;t joining any of your meetings. <Link href="/me/settings">Open companion settings</Link></p> : (
           <ul className="list ruled">
             {active.map((l) => {
               const next = nextFor(l);
@@ -97,7 +99,7 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
                     {l.sharedWithCoach ? <StatusBadge tone="neutral" label={`Shared with ${coach}`} /> : null}
                     {reviewDue(l) ? <StatusBadge tone="warning" label="Monthly check due" /> : null}
                   </div>
-                  <span className="text-small">For your action: {l.commitment.ifThenText}</span>
+                  <span className="text-small">{l.commitment ? `Focused on your action: ${l.commitment.ifThenText}` : 'Checked against all your active actions'}</span>
                   <span className="fine-print">
                     {next ? `Next: ${dayTime(next.scheduledAt)}.` : l.scope === 'single' ? 'This meeting has passed.' : 'No upcoming meeting in your calendar.'}
                     {last ? ` Latest feedback: ${day(last.scheduledAt)}.` : ''}
@@ -111,7 +113,7 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
 
       {stopped.length ? (
         <section aria-labelledby="st-head" className="p-card stack">
-          <h2 id="st-head" className="heading-small heading-reset">Past and stopped</h2>
+          <h2 id="st-head" className="heading-small heading-reset">Past and turned off</h2>
           <ul className="list ruled">
             {stopped.map((l) => (
               <li key={l.id} className="row row--wrap row--tight">

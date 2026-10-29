@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ConfirmButton } from '@/components/client';
 import { SideNav } from '@/components/ui';
@@ -14,8 +15,9 @@ export async function CoacheeShell({ userId, current, children }: { userId: stri
     { href: recap, label: 'Latest recap' },
     { href: '/me/roadmap', label: 'Leadership Roadmap ↗' },
     { href: '/me/sessions', label: 'Past sessions' },
-    { href: '/me/meetings', label: 'Linked meetings' },
+    { href: '/me/meetings', label: 'My meetings' },
     { href: '/me/coaching', label: 'Coaching guidance' },
+    { href: '/me/settings', label: 'Companion settings' },
     { href: '/me/data', label: 'My data' },
   ];
   return (
@@ -47,7 +49,6 @@ export async function MyDataSection({ userId }: { userId: string }) {
   const commitmentCount = sessions.reduce((n, s) => n + s.commitments.length, 0);
   const coach = engagement ? firstName(engagement.coach.name) : 'Your coach';
   const clientShort = user.client?.name.split(' ')[0] ?? 'Your organization';
-  const prefs = (user.preferences ?? {}) as { capturePreference?: string };
 
   const deleteAllBody = (
     <>
@@ -102,11 +103,8 @@ export async function MyDataSection({ userId }: { userId: string }) {
         </table>
       </div>
       <div className="row row--wrap section-rule">
-        <label className="grow text-body" htmlFor="capture-pref">Ask before each session is captured</label>
-        <select id="capture-pref" className="ecb-form-select select--max" defaultValue={prefs.capturePreference ?? 'ask'}>
-          <option value="ask">Ask me each time</option>
-          <option value="never">Never capture my sessions</option>
-        </select>
+        <span className="grow text-body">Which sessions and meetings the companion joins</span>
+        <Link className="ecb-btn-secondary" href="/me/settings">Open companion settings</Link>
       </div>
       <div>
         <ConfirmButton label="Delete all my coaching data" className="ecb-btn-danger" copy={{

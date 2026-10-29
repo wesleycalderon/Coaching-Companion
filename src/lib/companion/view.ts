@@ -93,6 +93,7 @@ export async function buildView(m: CompanionMessage): Promise<MessageView> {
         paragraphs: [
           `I'm an AI assistant working alongside your coach${engagement ? `, ${engagement.coach.name}` : ''}. Between sessions, I'll help you keep the actions you agree together.`,
           `${coachFirst} reviews every recap before you see it. ${recipient.client ? `${recipient.client.name.split(' ')[0]} sees only totals across ${recipient.client.minGroupSize} or more coachees, never your content.` : ''} ${recipient.client ? retentionSentence(recipient.client) : ''}`.trim(),
+          'Starting means you agree to use the companion. It then joins your coaching sessions and work meetings by default, with a notice to everyone each time. You can turn any of them off, or choose them yourself, in Companion settings.',
         ],
         form: { type: 'welcome', midday: prefs.midday ?? '12:00', endOfDay: prefs.endOfDay ?? '17:00', useCalendar: prefs.useCalendar ?? true, submitLabel: 'Start my companion' },
       };
@@ -199,7 +200,7 @@ export async function buildView(m: CompanionMessage): Promise<MessageView> {
         badge: ATTEMPT_BADGE[check.attempted],
         paragraphs: [check.summary],
         items: check.evidence.map((e) => ({ label: `You said, ${e.time}`, text: `"${e.quote}"` })),
-        facts: [`Your action: ${o.link.commitment.ifThenText}`, `Open or curiosity questions you asked: ${curious}`],
+        facts: [o.link.commitment ? `Your action: ${o.link.commitment.ifThenText}` : 'Checked against your active actions', `Open or curiosity questions you asked: ${curious}`],
         link: { label: 'See this series ↗', href: `/me/meetings/${o.linkId}` },
         note: `Only your own words were analyzed. Nothing anyone else said was kept. ${coachFirst} sees this only if you share the series.`,
       };
@@ -210,7 +211,7 @@ export async function buildView(m: CompanionMessage): Promise<MessageView> {
       return {
         ...base,
         title: `Keep linking ${l.title}?`,
-        paragraphs: [`It's been a month. ${l.title}${l.cadence ? ` (${l.cadence})` : ''} is linked to your action: ${l.commitment.ifThenText}`],
+        paragraphs: [`It's been a month. ${l.title}${l.cadence ? ` (${l.cadence})` : ''} is ${l.commitment ? `focused on your action: ${l.commitment.ifThenText}` : 'on for the companion'}`],
         facts: ['Everyone still sees a notice each time, and capture pauses for anyone who hasn’t agreed.', 'Only your own words are analyzed.'],
         choices: choose([{ value: 'keep', label: 'Keep it linked', primary: true }, { value: 'stop', label: 'Stop linking it' }]),
       };

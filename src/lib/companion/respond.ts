@@ -41,20 +41,23 @@ export async function respond(messageId: string, input: CompanionInput, actorUse
       const prefs = { ...((user.preferences ?? {}) as object), midday: input.midday ?? '12:00', endOfDay: input.endOfDay ?? '17:00', useCalendar: input.useCalendar ?? false };
       await db.user.update({ where: { id: user.id }, data: { preferences: prefs as Prisma.InputJsonValue } });
       await save({ midday: prefs.midday, endOfDay: prefs.endOfDay, useCalendar: prefs.useCalendar });
-      await send({ recipientId: m.recipientId, kind: 'ack', text: `You're set. I'll check in around ${prefs.midday} and ${prefs.endOfDay}, and ask for your consent the day before each session.` });
+      // Accepting the welcome is the coachee's agreement to use the companion.
+      const { agree } = await import('../companion-setup');
+      await agree(m.recipientId, m.deliveredVia === 'slack' || m.deliveredVia === 'teams' ? m.deliveredVia : 'web');
+      await send({ recipientId: m.recipientId, kind: 'ack', text: `You're set. I'll check in around ${prefs.midday} and ${prefs.endOfDay}. I'll join your coaching sessions and meetings as your companion settings say; change them any time in the app.` });
       return { ok: true };
     }
 
     case 'consent_request': {
       if (input.choice !== 'allow' && input.choice !== 'decline') return { error: 'Choose whether to allow capture.' };
       const s = await db.session.findUniqueOrThrow({ where: { id: m.sessionId! }, include: { engagement: true, consents: true } });
-      // STUB: BTS Studio engineering (production consent storage).
-      const existing = s.consents.find((c) => c.userId === m.recipientId);
-      const consentData = input.choice === 'allow' ? { grantedAt: now, revokedAt: null } : { grantedAt: null, revokedAt: now };
-      if (existing) await db.consent.update({ where: { id: existing.id }, data: { ...consentData, channel: m.deliveredVia === 'slack' || m.deliveredVia === 'teams' ? m.deliveredVia : 'web' } });
-      else await db.consent.create({ data: { id: `cons-${s.id}-${m.recipientId}`, sessionId: s.id, userId: m.recipientId, channel: m.deliveredVia === 'slack' || m.deliveredVia === 'teams' ? m.deliveredVia : 'web', ...consentData } });
-      const coachConsented = s.consents.some((c) => c.userId === s.engagement.coachId && c.grantedAt && !c.revokedAt);
-      await db.session.update({ where: { id: s.id }, data: { captureStatus: input.choice === 'allow' ? (coachConsented ? 'consented' : 'scheduled') : 'no_capture' } });
+      // Answering for one session is a one-off choice in the coachee's companion settings; the
+      // session then follows both people's settings. STUB: BTS Studio engineering (consent storage).
+      const { refreshSession, setRule } = await import('../companion-setup');
+      await setRule(m.recipientId, { sessionId: s.id, engagementId: s.engagementId }, input.choice === 'allow' ? 'on' : 'off');
+      await refreshSession(s.id);
+      const channel = m.deliveredVia === 'slack' || m.deliveredVia === 'teams' ? m.deliveredVia : 'web';
+      await db.consent.updateMany({ where: { sessionId: s.id, userId: m.recipientId, channel: 'standing' }, data: { channel } });
       await db.auditEvent.create({
         data: input.choice === 'allow'
           ? { id: `audit-${m.id}-consent`, actorId: m.recipientId, action: 'create', category: 'consent', label: 'Consent given', object: `Capture of session ${s.number}`, clientId: s.engagement.clientId, at: now }

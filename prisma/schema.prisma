@@ -69,6 +69,8 @@ model User {
   growthArea        String? // coaches only: the practice area the coach chose
   managerId         String? // coaches only: their coach manager
   slackUserId       String? // set when the companion first finds the person in Slack
+  // Companion setup: automatic (every meeting on after opt-in) | manual (only what they pick)
+  captureMode       String    @default("automatic")
   createdAt         DateTime  @default(now())
 
   client                Client?                @relation(fields: [clientId], references: [id])
@@ -88,6 +90,9 @@ model User {
   approvedSummaries     Summary[]
   companionMessages     CompanionMessage[]
   meetingLinks          MeetingLink[]
+  agreements            CompanionAgreement[]
+  accountLinks          AccountLink[]
+  captureRules          CaptureRule[]
 }
 
 model Engagement {
@@ -142,6 +147,9 @@ model Session {
   transcriptSource String? // zoom | upload: how the transcript arrived
   captureStatus    String // scheduled | consented | captured | paused | removed | no_capture
   removedById      String?
+  // Why an upcoming session isn't captured: policy | coach_off | coachee_off | coach_not_set_up |
+  // coachee_not_set_up | coach_no_zoom. Null when it is on. Set by src/lib/companion-setup.ts.
+  captureReason    String?
 
   engagement     Engagement        @relation(fields: [engagementId], references: [id])
   consents       Consent[]
@@ -321,12 +329,15 @@ model Rubric {
 }
 
 model Integration {
-  id        String @id
-  clientId  String
-  kind      String // zoom | slack | teams | calendar | google_meet | sounding_board
-  status    String // connected | needs_approval | not_connected | planned
-  detail    String
-  sortOrder Int    @default(0)
+  id            String    @id
+  clientId      String
+  kind          String // zoom | slack | teams | calendar | google_meet | sounding_board
+  status        String // connected | needs_approval | not_connected | planned
+  detail        String
+  sortOrder     Int       @default(0)
+  // Who installed it for the client (a client admin, or a BTS admin) and when.
+  installedById String?
+  installedAt   DateTime?
 
   client Client @relation(fields: [clientId], references: [id])
 }
@@ -423,10 +434,17 @@ model ManagerNote {
 // ── Work meetings (milestone 7) ─────────────────────────────────────────────────────
 // A meeting, or a whole recurring series, the coachee linked to one of their actions. Kept
 // apart from coaching sessions so nothing here reaches coach views unless the coachee shares it.
+// Companion setup: every meeting on the owner's calendar can have a link. "linked" ones are
+// focused on one action; "automatic" and "picked" ones come from the owner's settings
+// (src/lib/companion-setup.ts) and are checked against all their active actions (coachees) or
+// their growth area (coaches).
 model MeetingLink {
   id              String    @id
-  commitmentId    String
+  commitmentId    String?
+  // The meeting's owner: a coachee, or a coach for their own practice (ownerRole).
   coacheeId       String
+  ownerRole       String    @default("coachee") // coachee | coach
+  origin          String    @default("linked") // linked | automatic | picked
   scope           String // single | series
   calendarEventId String // the calendar's meeting or series id. STUB: calendar integration
   title           String
@@ -438,7 +456,7 @@ model MeetingLink {
   lastConfirmedAt DateTime // the monthly keep-or-stop prompt resets this
   sharedWithCoach Boolean   @default(false)
 
-  commitment  Commitment          @relation(fields: [commitmentId], references: [id])
+  commitment  Commitment?         @relation(fields: [commitmentId], references: [id])
   coachee     User                @relation(fields: [coacheeId], references: [id])
   occurrences MeetingOccurrence[]
 
@@ -455,7 +473,7 @@ model MeetingOccurrence {
   endsAt        DateTime
   // { name, internal, agreedAt, declinedAt }[] from the notice. STUB: BTS Studio engineering (consent storage).
   attendees     Json
-  captureStatus String // scheduled | notice_shown | paused | skipped_external | captured | stopped
+  captureStatus String // scheduled | notice_shown | paused | skipped_external | captured | stopped | off
   noticeShownAt DateTime?
   check         Json? // WorkMeetingCheck in src/lib/work-meetings.ts
   checkedAt     DateTime?
@@ -513,4 +531,56 @@ model CoachingTurn {
   createdAt      DateTime
 
   conversation CoachingConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+// ── Companion setup (after milestone 7) ─────────────────────────────────────────────
+// A person's agreement to use the companion. Versioned; revoking turns everything off.
+// STUB: BTS Studio engineering (consent storage, legal wording).
+model CompanionAgreement {
+  id        String    @id
+  userId    String
+  version   String
+  channel   String // web | slack | teams
+  agreedAt  DateTime
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// An account a person linked: coaches link their BTS Slack, their own Zoom and calendar;
+// coachees link their company's Slack or Teams and calendar, once their admin installed it.
+// STUB: BTS Studio engineering (OAuth, tokens). No accounts are contacted.
+model AccountLink {
+  id          String    @id
+  userId      String
+  provider    String // slack | teams | zoom | calendar
+  workspace   String // "bts" or the client id
+  externalId  String // the account's id with the provider (synthetic)
+  displayName String
+  status      String // linked | revoked
+  linkedAt    DateTime
+  revokedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// One person's choice for a meeting. A series rule covers a coaching engagement or a calendar
+// series; a one-off rule covers one session, or one calendar meeting at one time (seriesId + at).
+model CaptureRule {
+  id           String    @id
+  userId       String
+  engagementId String?
+  seriesId     String? // calendar event id
+  sessionId    String?
+  at           DateTime? // one meeting in a calendar series
+  choice       String // on | off
+  createdAt    DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }

@@ -28,7 +28,13 @@ export async function captureBadge(s: Session): Promise<Badge> {
     case 'captured': return { label: 'Captured', tone: 'success' };
     case 'consented': return { label: 'Consented', tone: 'info' };
     case 'paused': return { label: 'Paused', tone: 'info' };
-    case 'no_capture': return { label: 'Companion mode, no capture', tone: 'neutral' };
+    case 'no_capture': {
+      if (!s.captureReason || s.captureReason === 'policy') return { label: s.captureReason ? 'Off: client policy' : 'Companion mode, no capture', tone: 'neutral' };
+      const { SESSION_REASON } = await import('./companion-setup');
+      const e = await db.engagement.findUnique({ where: { id: s.engagementId }, include: { coach: true, coachee: true } });
+      const why = e ? SESSION_REASON[s.captureReason]?.(e.coach.name.split(' ')[0], e.coachee.name.split(' ')[0]) : undefined;
+      return { label: 'Companion off', tone: 'neutral', title: why };
+    }
     case 'removed': {
       const by = s.removedById ? await db.user.findUnique({ where: { id: s.removedById } }) : null;
       return { label: 'Companion removed', tone: 'neutral', title: by ? `Removed by the ${ROLE_LABEL[by.role as Role].toLowerCase()} before the session` : undefined };

@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { asJson, Count, count, dayTime, firstName, percent } from '@/lib/format';
 import { markerIndex, practiceFor } from '@/lib/practice';
 import { answerView } from '@/lib/queries';
+import { CoachMeetingsSection } from '@/components/coach-meetings';
 
 export default async function MyPracticePage({ searchParams }: { searchParams: { session?: string } }) {
   const persona = allow(['coach']);
@@ -95,6 +96,7 @@ export default async function MyPracticePage({ searchParams }: { searchParams: {
           <p className="fine-print">Markers are shown only once they reach agreement with PCC and MCC raters. Results are descriptive, not a grade.</p>
         </section>
       </div>
+      <CoachMeetingsSection coachId={me.id} growthArea={me.growthArea} />
       <SampleNote />
     </NavPage>
   );

@@ -5,8 +5,12 @@ import { EventBadge, StatusBadge } from '@/ds/components';
 import { CHANNEL_LABEL, ROLE_LABEL, type Channel, type EventAction, type Role } from '@/lib/domain';
 import { day, firstName, time } from '@/lib/format';
 import { sessionWithPeople } from '@/lib/queries';
+import { ActionButton } from '@/components/admin-forms';
+import { oneOffChoice, personState, SESSION_REASON } from '@/lib/companion-setup';
+import { db } from '@/lib/db';
+import { toggleOneAction } from '@/lib/setup-actions';
 
-const PLATFORM: Record<string, string> = { zoom: 'Zoom on the BTS coaching account', teams: 'Microsoft Teams', meet: 'Google Meet' };
+const PLATFORM: Record<string, string> = { zoom: 'Zoom, on your linked account', teams: 'Microsoft Teams', meet: 'Google Meet' };
 
 export default async function SessionLivePage({ params }: { params: { id: string } }) {
   const path = `/coach/sessions/${params.id}/live`;
@@ -16,10 +20,14 @@ export default async function SessionLivePage({ params }: { params: { id: string
   if (!s || s.engagement.coachId !== persona.userId) return <NotFoundCard what="session" />;
 
   const who = firstName(s.engagement.coachee.name);
+  const nextSession = await db.session.findFirst({ where: { engagementId: s.engagementId, number: s.number + 1 } });
+  const coachState = await personState(persona.userId);
+  const nextOff = nextSession ? oneOffChoice(coachState, { sessionId: nextSession.id }) === 'off' : false;
+  const target = (id: string) => JSON.stringify({ sessionId: id, engagementId: s.engagementId });
   const live = s.events.length > 0;
   const waiting = s.consents.filter((c) => !c.grantedAt && !c.revokedAt);
   const capture = s.captureStatus === 'removed' ? { label: 'Companion removed', tone: 'neutral' as const }
-    : s.captureStatus === 'no_capture' ? { label: 'No capture', tone: 'neutral' as const }
+    : s.captureStatus === 'no_capture' ? { label: s.captureReason && SESSION_REASON[s.captureReason] ? `Off: ${SESSION_REASON[s.captureReason](firstName(s.engagement.coach.name), who).toLowerCase()}` : 'No capture', tone: 'neutral' as const }
     : waiting.length > 0 ? { label: 'Paused, late joiner', tone: 'info' as const }
     : live ? { label: 'Capturing', tone: 'live' as const }
     : { label: s.captureStatus === 'consented' ? 'Ready to capture' : 'Waiting for consent', tone: 'neutral' as const };
@@ -59,7 +67,7 @@ export default async function SessionLivePage({ params }: { params: { id: string
           <div className="btn-row">
             <button className="ecb-btn-secondary" type="button">Pause capture</button>
             <button className="ecb-btn-secondary" type="button">Resume capture</button>
-            <ConfirmButton label="Remove companion from this session" className="ecb-btn-danger" copy={{
+            <ConfirmButton label="Remove companion from this session" className="ecb-btn-danger" action={toggleOneAction.bind(null, target(s.id), `session ${s.number} with ${s.engagement.coachee.name}`, 'off')} copy={{
               title: 'Remove the companion from this session?',
               body: <><p>Capture stops now and anything captured so far is deleted.</p><p>{who} and you both see that the companion left. No recap is made for this session.</p></>,
               undo: "You can't undo this for this session. Future sessions aren't affected.",
@@ -70,7 +78,12 @@ export default async function SessionLivePage({ params }: { params: { id: string
           <p className="fine-print">{who} has the same controls in Slack and in the <Link href={`/session/${s.id}/panel`}>meeting side panel</Link>.</p>
           <div className="divider" />
           <h3 className="text-body strong heading-reset">Upcoming sessions</h3>
-          <label className="check"><input type="checkbox" /> Run session {s.number + 1} without capture</label>
+          {nextSession ? (
+            <div className="row row--wrap text-body">
+              <span className="grow">Session {s.number + 1}, {day(nextSession.scheduledAt)}: {nextOff ? 'you turned the companion off' : 'follows your companion settings'}</span>
+              <ActionButton action={toggleOneAction.bind(null, target(nextSession.id), `session ${s.number + 1} with ${s.engagement.coachee.name}`, nextOff ? 'default' : 'off')} label={nextOff ? `Turn session ${s.number + 1} back on` : `Run session ${s.number + 1} without capture`} pendingLabel="Saving…" className="ecb-btn-secondary" />
+            </div>
+          ) : <p className="text-body">No next session booked yet. <Link href="/coach/settings">Companion settings</Link></p>}
         </section>
       </div>
 

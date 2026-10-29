@@ -1,6 +1,6 @@
-// The coachee's upcoming meetings, as the calendar integration would return them.
-// STUB: calendar integration. Synthetic events only; every coachee gets a weekly team meeting
-// and a one-to-one series, and Priya has a few more for the demo.
+// A person's upcoming meetings, as the calendar integration would return them.
+// STUB: calendar integration. Synthetic events only; everyone gets a weekly team meeting and a
+// one-to-one series, and Priya (coachee) and Daniel (coach) have their own for the demo.
 
 import { now } from './format';
 
@@ -37,6 +37,14 @@ export function calendarFor(user: { id: string; name: string }): CalendarEvent[]
       { id: 'cal-priya-ana', title: 'One-to-one with Ana', recurring: true, cadence: 'Mondays 15:00', nextAt: nextWeekday(1, 15), minutes: 30, attendees: team(['Ana Ruiz']) },
       { id: 'cal-priya-planning', title: 'Team planning', recurring: true, cadence: 'Tuesdays 10:00', nextAt: nextWeekday(2, 10), minutes: 60, attendees: team(['Ana Ruiz', 'Sam Osei', 'Leo Brandt', 'Mia Novak']) },
       { id: 'cal-priya-carrier', title: 'Carrier review with Bluefin Freight', recurring: false, nextAt: nextWeekday(3, 10), minutes: 60, attendees: [...team(['Sam Osei']), { name: 'Dana Whitlock (Bluefin Freight)', internal: false }] },
+    ];
+  }
+  if (user.id === 'daniel') {
+    // A coach's own meetings (coaching sessions aren't calendar events here: they're sessions).
+    return [
+      { id: 'cal-daniel-community', title: 'Coach community call', recurring: true, cadence: 'Wednesdays 16:00', nextAt: nextWeekday(3, 16), minutes: 45, attendees: team(['Aiko Tanaka', 'Sofia Brandt', 'Kwame Asante']) },
+      { id: 'cal-daniel-supervision', title: 'Supervision with Grace', recurring: true, cadence: 'Fridays 10:00', nextAt: nextWeekday(5, 10), minutes: 30, attendees: team(['Grace Mwangi']) },
+      { id: 'cal-daniel-orrin', title: 'Intro call with Orrin Health', recurring: false, nextAt: nextWeekday(2, 15), minutes: 30, attendees: [{ name: 'Morgan Lee (Orrin Health)', internal: false }] },
     ];
   }
   const first = user.name.split(' ')[0].toLowerCase();

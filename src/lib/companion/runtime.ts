@@ -8,6 +8,18 @@ export async function startCompanion() {
   if (g.__companionStarted) return;
   g.__companionStarted = true;
 
+  // Work out which upcoming sessions the companion joins, from everyone's settings (for example
+  // after a reseed). Changes to settings re-apply on their own.
+  try {
+    const { refreshSession } = await import('../companion-setup');
+    const { db } = await import('../db');
+    const { now } = await import('../format');
+    const upcoming = await db.session.findMany({ where: { scheduledAt: { gt: now() } }, select: { id: true } });
+    for (const s of upcoming) await refreshSession(s.id);
+  } catch (e) {
+    console.error('[setup] could not refresh upcoming sessions', e);
+  }
+
   if (slackEnabled()) {
     const { startSlack } = await import('./slack');
     await startSlack().catch((e) => console.error('[slack] could not connect; messages stay in the web app', e));

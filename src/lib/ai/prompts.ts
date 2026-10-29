@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type TaskName = 'speaker-roles' | 'session-summary' | 'action-extraction' | 'action-follow-up' | 'nudge-writer' | 'ask-the-ai' | 'next-session-plan' | 'practice-feedback' | 'work-meeting-check';
+export type TaskName = 'speaker-roles' | 'session-summary' | 'action-extraction' | 'action-follow-up' | 'nudge-writer' | 'ask-the-ai' | 'next-session-plan' | 'practice-feedback' | 'work-meeting-check' | 'coach-meeting-practice';
 
 const dir = () => join(process.cwd(), 'prompts');
 

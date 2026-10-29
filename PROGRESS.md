@@ -226,6 +226,26 @@ Open `/` for the screen index: every canvas artboard, its route, and which view 
 - The Delegating coach opened with its standard first question and didn't use the situation in the first message. Coaches could use the context they're given when a conversation starts with one.
 - BiTSy's wrap-up insights can describe the person ("Your awareness of this pattern is a leadership strength"). The prototype's rule is never to infer personality, so this needs a decision.
 
+## Companion setup (after milestone 7; screens not on the canvas yet, flagged for design review)
+
+- **Agreement:** coaches and coachees agree to use the companion (versioned, `CompanionAgreement`). Until they do, it joins nothing. Coaches agree on `/coach/welcome` or `/coach/settings`; coachees on `/me/settings` or by starting the companion from its Slack or Teams welcome. "Stop using the companion" turns everything off.
+- **Linked accounts** (`AccountLink`): coaches link BTS Slack, their own Zoom and their calendar; coachees link their company's Slack or Teams and calendar, only once their client admin installed it. If the admin removes a tool, coachees' links stop counting and say so.
+- **Which meetings:** after agreeing, everything is on (automatic) unless the person switches to manual. Either way they can set a series (a coaching engagement or a calendar series) to always on or always off, or turn one session or meeting on or off (`CaptureRule`). One-off beats series beats default (`decide` in `src/lib/companion-setup.ts`).
+- **Coaching sessions** run with the companion only when the client's policy allows it, both people have it on, and (for Zoom) the coach linked Zoom. The settings write standing `Consent` rows (channel `standing`), so the pipeline's per-session consent check is unchanged. `Session.captureReason` says why a session is off, shown in the session list, the live page and both settings screens. The coach's "Run without capture" (plan page and live page), "Turn off for this session" and the coachee's Slack consent answer all write one-off choices. Upcoming sessions are refreshed at server start and after every change.
+- **Work meetings for everyone:** with the companion on, every meeting on the person's calendar gets a link and occurrences for the next two weeks (`syncMeetings`), except meetings with someone from outside. Milestone 7's notice, pause, external skip and own-words-only rules are unchanged. Coachees' unfocused meetings are checked against all their active actions (prompt updated); focusing a meeting on one action (`/me/meetings`, renamed My meetings) works as before.
+- **Coaches' own meetings:** practice feedback on the coach's own words against their growth area (new prompt `prompts/coach-meeting-practice.md`), shown on My practice and `/coach/meetings/[id]`. Daniel has a synthetic calendar (community call, supervision, an external intro call that is never captured).
+- **Client admins** install or remove Slack, Teams, Zoom and calendar on `/client/integrations`, with who installed it and how many coachees linked. BTS admins see the installer on `/admin/integrations`.
+- **Tested** (live AI): Daniel turns off Marcus's session 3 and his series with Tom (off, with the reason); Priya's unfocused Team planning meeting captured after everyone agreed, feedback against her actions; Daniel's community call captured, practice feedback on My practice; Luis completes setup; Northwind's admin removes Slack and Priya sees it. Pages fit at 375 px.
+
+### Stubbed or not built
+- OAuth and app installs for every linked account and client install (simulated; no accounts are contacted). STUB: BTS Studio engineering.
+- The calendar is still synthetic (`src/lib/calendar.ts`), and the companion only looks two weeks ahead.
+- Zoom account matching: the webhook doesn't yet check that a transcript came from the coach's linked Zoom account.
+- Delivery still uses the Slack and Teams settings in `.env`, not the person's linked account.
+- Legal review: standing consent from settings in place of asking before each session, and joining all meetings by default after agreement. The agreement wording is a placeholder.
+- No coach heads-up message in Slack yet (planned as optional; not built).
+- Halden (Elena's client) has companion mode and work meetings off, so Elena's manual setting shows mostly policy reasons.
+
 ## Live API check (Sonnet 5.5, `ANTHROPIC_MODEL` in `.env`)
 
 - Amara's session 2 through the Zoom simulator: all five tasks (speaker roles, summary, actions, follow-up, practice feedback) returned valid output; no quote failed the transcript check, nothing was dropped, one client term was redacted. The uncertain "hand Kai the rota" action came back flagged for coach confirmation.

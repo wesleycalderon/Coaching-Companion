@@ -6,7 +6,7 @@ import { pickClient } from '@/lib/admin';
 import { changeIntegration, saveMcpScopes } from '@/lib/admin-actions';
 import { db } from '@/lib/db';
 import { CHANNEL_LABEL, INTEGRATION_LABEL, INTEGRATION_STATUS, type Channel, type IntegrationStatus, type NudgeDefaults } from '@/lib/domain';
-import { asJson } from '@/lib/format';
+import { asJson, day } from '@/lib/format';
 
 // Connections are simulated in the prototype: connecting flips the status and writes an
 // audit event. STUB: BTS Studio engineering (OAuth, Slack and Teams app installs, tenant approval).
@@ -18,6 +18,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
   const scopes = asJson<string[]>(client.mcpScopes);
   const channels = asJson<NudgeDefaults>(client.nudgeDefaults).channels;
   const short = client.name.split(' ')[0];
+  const installers = await db.user.findMany({ where: { id: { in: client.integrations.map((i) => i.installedById).filter((x): x is string => Boolean(x)) } } });
   const disconnectEffect = (kind: string) => {
     const i = channels.indexOf(kind as Channel);
     if (i >= 0) return i < channels.length - 1 ? `Nudges and recaps go by ${channels[i + 1] === 'email' ? 'email' : CHANNEL_LABEL[channels[i + 1]]} instead.` : 'Coachees stop getting nudges and recaps there.';
@@ -48,6 +49,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
             <div key={i.id} className="card card--pad card--stack card--stack-100">
               <div className="row row--tight"><span className="strong grow">{label}</span><StatusBadge tone={st.tone} label={i.status === 'planned' ? 'Planned' : st.label} /></div>
               <p className="fine-print">{i.detail}</p>
+              {i.status === 'connected' && i.installedAt ? <p className="text-small">Installed by {installers.find((u) => u.id === i.installedById)?.name ?? 'BTS'} on {day(i.installedAt)}.</p> : null}
               {i.status === 'connected' ? (
                 <ConfirmButton label="Disconnect" ariaLabel={`Disconnect ${label}`} action={changeIntegration.bind(null, i.id, 'disconnect')} copy={{
                   title: `Disconnect ${label} from ${short}?`,

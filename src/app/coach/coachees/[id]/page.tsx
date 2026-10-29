@@ -101,12 +101,12 @@ export default async function CoacheeProfilePage({ params }: { params: { id: str
       {shared.length ? (
         <section aria-labelledby="wm-head" className="card card--pad card--stack">
           <div className="row row--tight"><h2 id="wm-head" className="heading-xsmall heading-reset grow">Work meetings {firstName(e.coachee.name)} shared</h2><RoleBadge label="AI" /></div>
-          <p className="fine-print">Feedback from meetings {firstName(e.coachee.name)} linked to an action and chose to share with you. It comes from {firstName(e.coachee.name)}&apos;s own words only; no one else&apos;s words are kept.</p>
+          <p className="fine-print">Feedback from work meetings {firstName(e.coachee.name)} chose to share with you. It comes from {firstName(e.coachee.name)}&apos;s own words only; no one else&apos;s words are kept.</p>
           <div className="stack ruled">
             {shared.map((l) => (
               <div key={l.id} className="stack stack--tight">
                 <span className="strong">{l.title}{l.cadence ? ` · ${l.cadence}` : ''}</span>
-                <span className="text-small">For the action: {l.commitment.title}</span>
+                <span className="text-small">{l.commitment ? `For the action: ${l.commitment.title}` : 'Checked against all of their active actions'}</span>
                 {l.occurrences.length === 0 ? <span className="fine-print">No feedback yet.</span> : l.occurrences.map((o) => {
                   const check = asJson<WorkMeetingCheck>(o.check);
                   const badge = ATTEMPT_BADGE[check.attempted];

@@ -601,7 +601,7 @@ export async function changeIntegration(integrationId: string, op: 'connect' | '
     return { message: `Approval request recorded for ${label}. The prototype doesn't contact the tenant admin.` };
   }
   const status = op === 'connect' ? 'connected' : 'not_connected';
-  await db.integration.update({ where: { id: i.id }, data: { status } });
+  await db.integration.update({ where: { id: i.id }, data: op === 'connect' ? { status, installedById: persona.userId, installedAt: eventTime() } : { status, installedById: null, installedAt: null } });
   await audit({ actorId: persona.userId, action: op === 'connect' ? 'create' : 'delete', category: 'config', label: op === 'connect' ? 'Integration connected' : 'Integration disconnected', object: `${label} for ${i.client.name}`, clientId: i.clientId });
   refreshAdmin(i.clientId);
   redirect(`/admin/integrations?client=${i.clientId}&done=${op === 'connect' ? 'connected' : 'disconnected'}&which=${i.kind}`);

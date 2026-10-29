@@ -5,12 +5,16 @@ import { StatusBadge } from '@/ds/components';
 import { db } from '@/lib/db';
 import { Count, dayTime, firstName, now } from '@/lib/format';
 import { captureBadge, isUpcoming, summaryState } from '@/lib/queries';
+import { personState, refreshUpcomingSessions, SESSION_REASON } from '@/lib/companion-setup';
+import { toggleOneAction } from '@/lib/setup-actions';
 
 type View = 'upcoming' | 'review' | 'done';
 
 export default async function CoachSessionsPage({ searchParams }: { searchParams: { view?: string } }) {
   const persona = allow(['coach']);
   if (!persona) return <WrongRole roles={['coach']} path="/coach/sessions" />;
+  await refreshUpcomingSessions(persona.userId);
+  const setup = await personState(persona.userId);
 
   const sessions = await db.session.findMany({
     where: { engagement: { coachId: persona.userId, coachee: { status: { not: 'removed' } } } },
@@ -44,6 +48,13 @@ export default async function CoachSessionsPage({ searchParams }: { searchParams
       <PageHead title="Your sessions" lede={ledeFull}>
         <button className="ecb-btn-primary" type="button">Schedule a session</button>
       </PageHead>
+      {!setup.optedIn ? (
+        <div role="status" className="card card--pad row row--wrap text-body">
+          <StatusBadge tone="warning" label="Not set up" />
+          <span className="grow">Finish setting up the companion. Until you agree to use it, it doesn&apos;t join your sessions.</span>
+          <Link className="ecb-btn-primary" href="/coach/welcome">Finish setup</Link>
+        </div>
+      ) : null}
       <LinkTabs
         ariaLabel="Session views"
         value={view}
@@ -77,21 +88,24 @@ export default async function CoachSessionsPage({ searchParams }: { searchParams
           {comingUp.map((s) => {
             const who = firstName(s.engagement.coachee.name);
             const consented = s.captureStatus === 'consented';
+            const off = s.captureStatus === 'no_capture' || s.captureStatus === 'removed';
             return (
               <div key={s.id} className="card card--pad row row--wrap">
                 <div className="grow">
                   <div className="strong">{s.engagement.coachee.name} · {dayTime(s.scheduledAt)}</div>
-                  <div className="cell-sub">{consented ? `${who} allowed capture. ` : ''}Your plan for this session is ready.</div>
+                  <div className="cell-sub">{consented ? `You and ${who} both have the companion on. ` : off && s.captureReason && SESSION_REASON[s.captureReason] ? `${SESSION_REASON[s.captureReason]('You', who).replace("You hasn't", "You haven't")}. ` : ''}Your plan for this session is ready.</div>
                 </div>
-                <StatusBadge tone={consented ? 'info' : 'neutral'} label={consented ? 'Consented' : 'Waiting for consent'} />
+                <StatusBadge tone={consented ? 'info' : 'neutral'} label={consented ? 'Companion on' : off ? 'Companion off' : 'Waiting for consent'} />
                 <Link className="ecb-btn-secondary" href={`/coach/coachees/${s.engagement.coacheeId}/plan`}>Open plan</Link>
-                <ConfirmButton label="Remove companion from this session" copy={{
-                  title: 'Remove the companion from this session?',
-                  body: <><p>The companion won't join session {s.number}, so nothing is captured.</p><p>{who} and you both see that the companion left. No recap is made for this session.</p></>,
-                  undo: "You can't undo this for this session. Future sessions aren't affected.",
-                  cancelLabel: 'Keep companion',
-                  confirmLabel: 'Remove companion',
-                }} />
+                {consented ? (
+                  <ConfirmButton label="Turn off for this session" action={toggleOneAction.bind(null, JSON.stringify({ sessionId: s.id, engagementId: s.engagementId }), `session ${s.number} with ${s.engagement.coachee.name}`, 'off')} copy={{
+                    title: 'Turn the companion off for this session?',
+                    body: <><p>The companion won't join session {s.number}, so nothing is captured.</p><p>{who} sees that it's off. No recap is made from a transcript; you can still add notes.</p></>,
+                    undo: 'You can turn it back on in Companion settings before the session starts.',
+                    cancelLabel: 'Keep it on',
+                    confirmLabel: 'Turn it off',
+                  }} />
+                ) : null}
               </div>
             );
           })}

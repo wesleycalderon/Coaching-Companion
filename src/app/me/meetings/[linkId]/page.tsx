@@ -29,22 +29,22 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
   const captured = link.occurrences.filter((o) => o.captureStatus === 'captured').reverse();
   const checks = captured.map((o) => ({ o, check: asJson<WorkMeetingCheck>(o.check) }));
   const maxQ = Math.max(1, ...checks.map(({ check }) => check.counts.open_question + check.counts.curiosity_question));
-  const notice = { linked: 'Linked. Everyone in the meeting sees a notice each time before anything is captured.', stopped: 'Stopped. Upcoming meetings won’t be captured. Feedback you already have stays here until you delete it.' }[searchParams.done ?? ''];
+  const notice = { linked: 'Focused on your action. Everyone in the meeting sees a notice each time before anything is captured.', stopped: 'Turned off. Upcoming meetings won’t be captured. Feedback you already have stays here until you delete it.' }[searchParams.done ?? ''];
 
   return (
     <CoacheeShell userId={persona.userId} current="/me/meetings">
-      <BackLink href="/me/meetings">Back to linked meetings</BackLink>
+      <BackLink href="/me/meetings">Back to my meetings</BackLink>
       <div className="stack stack--100">
         <span className="overline">{series ? `Series · ${link.cadence}` : 'One meeting'}</span>
         <h1 className="participant-title">{link.title}</h1>
-        <p className="participant-lede">For your action: {link.commitment.ifThenText}</p>
+        <p className="participant-lede">{link.commitment ? `Focused on your action: ${link.commitment.ifThenText}` : 'Checked against all the actions you’re practicing. Focus it on one action from My meetings.'}</p>
       </div>
       {notice ? <div role="status" className="p-card row row--top text-body"><StatusBadge tone="success" label="Saved" /><span className="grow">{notice}</span></div> : null}
 
       <div className="p-card stack">
         <div className="row row--wrap row--tight">
-          <span className="grow text-body">{active ? (series ? 'Linked. Each meeting is captured only after everyone in it agrees.' : 'Linked for this one meeting.') : `${link.stopReason ? STOP_REASON[link.stopReason] : 'Stopped'}.`}</span>
-          <StatusBadge tone={active ? 'live' : 'neutral'} label={active ? 'Linked' : 'Stopped'} />
+          <span className="grow text-body">{active ? (series ? 'On. Each meeting is captured only after everyone in it agrees.' : 'On for this one meeting.') : `${link.stopReason ? STOP_REASON[link.stopReason] : 'Stopped'}.`}</span>
+          <StatusBadge tone={active ? 'live' : 'neutral'} label={active ? 'On' : 'Stopped'} />
         </div>
         {active && reviewDue(link) ? (
           <div className="subtle-panel stack">
@@ -55,16 +55,17 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
         <div className="btn-row">
           <ActionButton action={shareSeriesAction.bind(null, link.id, !link.sharedWithCoach)} label={link.sharedWithCoach ? `Stop sharing with ${coach}` : `Share feedback with ${coach}`} pendingLabel="Saving…" className="ecb-btn-secondary" />
           {active ? (
-            <ConfirmButton label={series ? 'Stop linking this series' : 'Stop linking this meeting'} className="ecb-btn-ghost" action={stopLinkAction.bind(null, link.id)} copy={{
-              title: `Stop linking ${link.title}?`,
+            <ConfirmButton label={series ? 'Turn off this series' : 'Turn off this meeting'} className="ecb-btn-ghost" action={stopLinkAction.bind(null, link.id)} copy={{
+              title: `Turn off the companion for ${link.title}?`,
               body: <p>{series ? 'Upcoming meetings in this series' : 'This meeting'} won&apos;t be captured. Your colleagues stop seeing the notice. Feedback you already have stays here.</p>,
-              undo: 'You can link it again at any time.',
-              confirmLabel: 'Stop linking',
+              undo: 'You can turn it on again in your companion settings.',
+              confirmLabel: 'Turn it off',
             }} />
           ) : null}
         </div>
         <p className="fine-print">{link.sharedWithCoach ? `${coach} can see the feedback below, never anyone else's words.` : `Only you see this feedback. ${coach} sees it only if you share it.`}</p>
-        <Link className="text-body" href={`/me/coaching?action=${link.commitmentId}`}>Get coaching on this action</Link>
+        {link.commitmentId ? <Link className="text-body" href={`/me/coaching?action=${link.commitmentId}`}>Get coaching on this action</Link> : null}
+        <Link className="text-body" href="/me/settings">Choose which meetings the companion joins</Link>
       </div>
 
       {series && checks.length ? (
@@ -138,7 +139,7 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
         </ul>
       </section>
 
-      {series && active ? (
+      {series && active && link.commitmentId ? (
         <div className="p-card stack">
           <span className="overline">Prototype controls</span>
           <p className="fine-print">The monthly keep-or-stop check is due {reviewDue(link) ? 'now' : 'a month after you linked or last kept this series'}.</p>

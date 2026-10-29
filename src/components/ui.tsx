@@ -43,6 +43,7 @@ export const COACH_NAV: NavItem[] = [
   { href: '/coach/coachees', label: 'Coachees' },
   { href: '/coach/plans', label: 'Next-session plans' },
   { href: '/coach/practice', label: 'My practice' },
+  { href: '/coach/settings', label: 'Companion settings' },
 ];
 export const ADMIN_NAV: NavItem[] = [
   { href: '/admin/clients', label: 'Clients' },
@@ -54,6 +55,7 @@ export const ADMIN_NAV: NavItem[] = [
 export const CLIENT_NAV: NavItem[] = [
   { href: '/client/results', label: 'Program results' },
   { href: '/client/coachees', label: 'Coachees' },
+  { href: '/client/integrations', label: 'Integrations' },
   { href: '/client/settings', label: 'Settings' },
 ];
 

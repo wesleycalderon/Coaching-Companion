@@ -105,6 +105,12 @@ export async function scheduleNextSession(coacheeId: string, _prev: FormState, f
       },
     });
   }
+  // The coach's choice for this session goes into their companion settings; the session then
+  // follows both people's settings (src/lib/companion-setup.ts).
+  const { refreshSession, setRule } = await import('./companion-setup');
+  const sessionId = next?.id ?? `${e.id}-s${number}`;
+  if (text(formData, 'capture') === 'none') await setRule(persona.userId, { sessionId, engagementId: e.id }, 'off');
+  await refreshSession(sessionId);
   if (withoutCapture) {
     await db.auditEvent.create({ data: { id: `audit-${e.id}-s${number}-nocapture-${now.getTime()}`, actorId: persona.userId, action: 'update', category: 'consent', label: 'Capture turned off', object: `Session ${number} with ${e.coachee.name} runs without capture`, clientId: e.clientId, at: now } });
   }
@@ -113,7 +119,7 @@ export async function scheduleNextSession(coacheeId: string, _prev: FormState, f
   revalidatePath('/coach/plans');
   revalidatePath('/coach/sessions');
   return {
-    message: `Session ${number} ${next ? 'moved to' : 'booked for'} ${day(start)} at ${time(start)}. ${withoutCapture ? `It runs without capture.` : `${who} is asked for consent the evening before.`} Calendar invites aren't sent from the prototype.`,
+    message: `Session ${number} ${next ? 'moved to' : 'booked for'} ${day(start)} at ${time(start)}. ${withoutCapture ? `It runs without capture.` : `The companion joins if ${who}'s settings have it on too.`} Calendar invites aren't sent from the prototype.`,
   };
 }
 
