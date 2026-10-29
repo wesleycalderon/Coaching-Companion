@@ -4,7 +4,7 @@ Read `HANDOFF.md` before starting any work. It has the scope, sources, screen ma
 
 ## Rules
 
-- Synthetic data only. Never add real client data, real transcripts or real credentials.
+- Synthetic data only. Never add real client data, real transcripts or real credentials. One exception: the live test (`docs/live-test.md`) runs against the developer's own personal Google, Zoom and Slack test accounts, with credentials in `.env` only and test meetings only.
 - Use the BTS Studio design system: tokens only, `.ecb-*` buttons and fields, `window.BTSStudio` components. Read a component's README before using it. No hardcoded colours, spacing or radii.
 - Sentence case for all UI copy. Buttons name the outcome. Every status shows a visible label.
 - Match the design canvas artboards for layout and copy.

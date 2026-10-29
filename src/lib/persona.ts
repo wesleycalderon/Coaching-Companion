@@ -27,7 +27,12 @@ export const PERSONAS: Persona[] = [
 export const PERSONA_COOKIE = 'cc_persona';
 const DEFAULT_PERSONA = 'coach';
 
+/** Live test: the real person who signed in with Google ("live:<userId>"). */
+export const LIVE_PREFIX = 'live:';
+export const livePersona = (userId: string): Persona => ({ id: `${LIVE_PREFIX}${userId}`, role: 'coachee', userId, label: 'You (signed in with Google)', home: '/me/start' });
+
 export function personaById(id: string | undefined): Persona {
+  if (id?.startsWith(LIVE_PREFIX) && /^live-[\w-]+$/.test(id.slice(LIVE_PREFIX.length))) return livePersona(id.slice(LIVE_PREFIX.length));
   return PERSONAS.find((p) => p.id === id) ?? PERSONAS.find((p) => p.id === DEFAULT_PERSONA)!;
 }
 

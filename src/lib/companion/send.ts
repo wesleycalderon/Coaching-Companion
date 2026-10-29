@@ -37,7 +37,7 @@ export interface SendInput {
   sessionId?: string;
   commitmentId?: string;
   checkInId?: string;
-  data?: { dayLabel?: string; badge?: Badge; mode?: 'swap'; dueBy?: string | null; linkId?: string; occurrenceId?: string };
+  data?: { dayLabel?: string; badge?: Badge; mode?: 'swap'; dueBy?: string | null; linkId?: string; occurrenceId?: string; conversationId?: string };
   sentAt?: Date;
 }
 

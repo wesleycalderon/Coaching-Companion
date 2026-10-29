@@ -32,6 +32,16 @@ export async function startCompanion() {
     await startTeams().catch((e) => console.error('[teams] could not start; messages stay in the web app', e));
   }
 
+  // Live test: the signed-in person's real meetings (notice, Zoom transcript, feedback), every minute.
+  if (process.env.LIVE_TEST === 'true') {
+    const cron = (await import('node-cron')).default;
+    const { runLiveMeetings } = await import('../live-meetings');
+    cron.schedule('* * * * *', () => {
+      runLiveMeetings().then((log) => log.forEach((l) => console.log(`[live] ${l}`))).catch((e) => console.error('[live] run failed', e));
+    });
+    console.log('[live] live test on: checking your calendar and Zoom recordings every minute');
+  }
+
   if (process.env.COMPANION_SCHEDULER === 'true') {
     const cron = (await import('node-cron')).default;
     const { draftDuePlans, runNudges } = await import('./scheduler');

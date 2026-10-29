@@ -13,9 +13,9 @@
 import { randomUUID } from 'node:crypto';
 import type { AccountLink, CaptureRule, CompanionAgreement, Prisma, User } from '@prisma/client';
 import { audit } from './audit';
-import { calendarFor, seriesStarts, type CalendarEvent } from './calendar';
+import { eventsFor, seriesStarts, type CalendarEvent } from './calendar';
 import { db } from './db';
-import { day, dayTime, eventTime, firstName, now } from './format';
+import { clockFor, day, dayTime, eventTime, firstName, now, wall } from './format';
 
 export const AGREEMENT_VERSION = '2025-10';
 export const WINDOW_DAYS = 14;
@@ -178,8 +178,10 @@ export function meetingsAllowed(st: PersonState): { ok: boolean; why?: string } 
   return { ok: true };
 }
 
-const window = () => ({ from: now(), until: new Date(now().getTime() + WINDOW_DAYS * DAY) });
-export const startsInWindow = (ev: CalendarEvent) => { const w = window(); return seriesStarts(ev, w.from, w.until); };
+type Clocked = { liveClock?: boolean } | null | undefined;
+const window = (user?: Clocked) => { const from = clockFor(user); return { from, until: new Date(from.getTime() + WINDOW_DAYS * DAY) }; };
+export const startsInWindow = (ev: CalendarEvent, user?: Clocked) => { const w = window(user); return seriesStarts(ev, w.from, w.until); };
+const NO_ZOOM = 'No Zoom link, so it can’t be captured';
 
 /**
  * Brings the person's meeting links in step with their settings: a meeting that's on gets a
@@ -193,11 +195,13 @@ export async function syncMeetings(userId: string) {
   const ownerRole = st.user.role;
   const links = await db.meetingLink.findMany({ where: { coacheeId: userId, stoppedAt: null }, include: { occurrences: true } });
   const engagement = ownerRole === 'coachee' ? await db.engagement.findFirst({ where: { coacheeId: userId }, orderBy: { start: 'desc' } }) : null;
-  for (const ev of calendarFor(st.user)) {
+  const clock = clockFor(st.user);
+  for (const ev of await eventsFor(st.user)) {
     // A meeting with someone from outside is never captured, so the companion doesn't add it.
-    if (ev.attendees.some((a) => !a.internal)) continue;
-    const starts = startsInWindow(ev);
-    let link = links.find((l) => l.calendarEventId === ev.id && (!l.expiresAt || l.expiresAt > now()));
+    // Nor is a live-test meeting without a Zoom link: there'd be no transcript to fetch.
+    if (ev.attendees.some((a) => !a.internal) || ev.noZoom) continue;
+    const starts = startsInWindow(ev, st.user);
+    let link = links.find((l) => l.calendarEventId === ev.id && (!l.expiresAt || l.expiresAt > clock));
     const decisions = starts.map((at) => {
       const d = decide(st, { seriesId: ev.id, at });
       // A link focused on an action is an explicit choice for its series.
@@ -222,6 +226,7 @@ export async function syncMeetings(userId: string) {
           data: {
             id: newId('mo'), linkId: link.id, scheduledAt: at, endsAt: new Date(at.getTime() + ev.minutes * 60_000),
             attendees: ev.attendees.map((a) => ({ ...a, agreedAt: null, declinedAt: null })) as unknown as Prisma.InputJsonValue, captureStatus: 'scheduled',
+            zoomMeetingId: ev.zoomMeetingId ?? null,
           },
         });
       } else if (on && occ?.captureStatus === 'off') {
@@ -236,7 +241,7 @@ export async function syncMeetings(userId: string) {
 // ── What the settings screens list ──────────────────────────────────────────────────
 
 export interface SeriesRow { key: string; title: string; detail: string; target: Target; choice: Choice; on: boolean; note?: string }
-export interface UpcomingRow { key: string; title: string; at: Date; kind: 'session' | 'meeting'; target: Target; on: boolean; reason: string; oneOff: Choice; href?: string; myOn: boolean; canToggle: boolean }
+export interface UpcomingRow { key: string; title: string; at: Date; /** For display: the live user's local time. */ displayAt?: Date; kind: 'session' | 'meeting'; target: Target; on: boolean; reason: string; oneOff: Choice; href?: string; myOn: boolean; canToggle: boolean }
 
 /** Recurring things the person can set: coaching series (per engagement) and calendar meetings. */
 export async function seriesFor(st: PersonState): Promise<SeriesRow[]> {
@@ -256,12 +261,16 @@ export async function seriesFor(st: PersonState): Promise<SeriesRow[]> {
     });
   }
   const external = (ev: CalendarEvent) => ev.attendees.some((a) => !a.internal);
-  for (const ev of calendarFor(st.user)) {
+  const clock = clockFor(st.user);
+  for (const ev of await eventsFor(st.user)) {
+    // Live calendars include meetings from the last few hours (so a transcript can still be
+    // fetched); don't offer settings for ones that are over.
+    if (ev.starts && !ev.starts.some((t) => t > clock)) continue;
     const t = { seriesId: ev.id };
     rows.push({
-      key: `cal:${ev.id}`, title: ev.title, detail: ev.recurring ? ev.cadence ?? 'Repeats' : `One meeting, ${dayTime(ev.nextAt)}`,
+      key: `cal:${ev.id}`, title: ev.title, detail: ev.recurring ? ev.cadence ?? 'Repeats' : `One meeting, ${dayTime(wall(ev.nextAt, st.user))}`,
       target: t, choice: seriesChoice(st, t), on: decide(st, t).on,
-      note: external(ev) ? 'Someone from outside is invited, so it’s never captured.' : undefined,
+      note: external(ev) ? 'Someone from outside is invited, so it’s never captured.' : ev.noZoom ? `${NO_ZOOM}.` : undefined,
     });
   }
   return rows;
@@ -272,7 +281,7 @@ const OFF_WHY: Record<Why, string> = { not_set_up: 'You haven’t set up the com
 /** Everything in the next two weeks, with whether the companion joins and why not. */
 export async function upcomingFor(st: PersonState): Promise<UpcomingRow[]> {
   const rows: UpcomingRow[] = [];
-  const w = window();
+  const w = window(st.user);
   const sessions = await db.session.findMany({
     where: { scheduledAt: { gt: w.from, lte: w.until }, engagement: { OR: [{ coachId: st.user.id }, { coacheeId: st.user.id }] } },
     include: { engagement: { include: { coach: true, coachee: true } } }, orderBy: { scheduledAt: 'asc' },
@@ -294,19 +303,19 @@ export async function upcomingFor(st: PersonState): Promise<UpcomingRow[]> {
   }
   const allowed = meetingsAllowed(st);
   const links = await db.meetingLink.findMany({ where: { coacheeId: st.user.id }, include: { occurrences: true } });
-  for (const ev of calendarFor(st.user)) {
-    for (const at of startsInWindow(ev)) {
+  for (const ev of await eventsFor(st.user)) {
+    for (const at of startsInWindow(ev, st.user)) {
       const t = { seriesId: ev.id, at };
       const d = decide(st, t);
       const link = links.find((l) => l.calendarEventId === ev.id && !l.stoppedAt);
       const occ = link?.occurrences.find((o) => o.scheduledAt.getTime() === at.getTime());
       const focused = Boolean(link?.commitmentId) && d.why === 'default';
       const external = ev.attendees.some((a) => !a.internal);
-      const on = allowed.ok && (d.on || focused) && !external;
-      const reason = !allowed.ok ? allowed.why! : external ? 'Someone from outside is invited, so it isn’t captured' : on ? '' : OFF_WHY[d.why];
+      const on = allowed.ok && (d.on || focused) && !external && !ev.noZoom;
+      const reason = !allowed.ok ? allowed.why! : external ? 'Someone from outside is invited, so it isn’t captured' : ev.noZoom ? NO_ZOOM : on ? '' : OFF_WHY[d.why];
       rows.push({
-        key: `m:${ev.id}:${at.toISOString()}`, title: ev.title, at, kind: 'meeting', target: t, on, reason, oneOff: oneOffChoice(st, t),
-        myOn: d.on || focused, canToggle: st.optedIn && allowed.ok && !external,
+        key: `m:${ev.id}:${at.toISOString()}`, title: ev.title, at, displayAt: wall(at, st.user), kind: 'meeting', target: t, on, reason, oneOff: oneOffChoice(st, t),
+        myOn: d.on || focused, canToggle: st.optedIn && allowed.ok && !external && !ev.noZoom,
         href: occ && link ? (isCoach ? `/coach/meetings/${link.id}` : `/me/meetings/${link.id}`) : undefined,
       });
     }

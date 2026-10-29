@@ -15,7 +15,7 @@ import type { MeetingLink, MeetingOccurrence, Prisma } from '@prisma/client';
 import { AiError, aiProvider, runTask } from './ai/client';
 import { WorkMeetingCheckSchema } from './ai/schemas';
 import { audit } from './audit';
-import { calendarFor } from './calendar';
+import { eventsFor } from './calendar';
 import { setRule, syncMeetings } from './companion-setup';
 import { db } from './db';
 import { asJson, day, eventTime, now, time } from './format';
@@ -82,7 +82,7 @@ export async function linkMeeting(input: { coacheeId: string; commitmentId: stri
   const c = await db.commitment.findFirst({ where: { id: input.commitmentId, approved: true, session: { engagement: { coacheeId: coachee.id } } }, include: { session: { include: { engagement: true } } } });
   if (!c) return { error: 'Choose one of your actions.' };
   if (!LINKABLE_STATUSES.includes(c.status)) return { error: 'Choose an action you are still practicing. Habits and set-aside actions can’t be linked.' };
-  const event = calendarFor(coachee).find((e) => e.id === input.eventId);
+  const event = (await eventsFor(coachee)).find((e) => e.id === input.eventId);
   if (!event) return { error: 'Choose a meeting from your calendar.' };
   if (input.scope === 'series' && !event.recurring) return { error: `${event.title} doesn't repeat. Link this meeting only.` };
   const active = (await db.meetingLink.findMany({ where: { coacheeId: coachee.id, calendarEventId: event.id, stoppedAt: null } })).filter(isActive);
@@ -221,16 +221,19 @@ export async function processOccurrence(input: { occurrenceId: string; content: 
     throw e;
   }
   // Someone who joined without seeing the notice pauses capture for the whole meeting.
-  const known = new Set([owner.name, ...attendees.map((a) => a.name)]);
-  const unknownSpeakers = [...new Set(segs.map((s) => s.speakerName))].filter((n) => !known.has(n));
+  // Live test: Zoom tells everyone in the meeting it's being transcribed, including anyone who
+  // joined uninvited, so there's no one to pause for.
+  const ownerNames = owner.liveClock ? await (await import('./live-meetings')).speakerNamesFor(owner.id) : [owner.name];
+  const known = new Set([...ownerNames, ...attendees.map((a) => a.name)]);
+  const unknownSpeakers = owner.liveClock ? [] : [...new Set(segs.map((s) => s.speakerName))].filter((n) => !known.has(n));
   if (unknownSpeakers.length) {
     await db.meetingOccurrence.update({ where: { id: o.id }, data: { captureStatus: 'paused' } });
     return { error: 'Capture stayed paused: someone joined who hadn’t seen the notice. Nothing was kept.' };
   }
   // Keep only the owner's own words. Everyone else's are dropped here, in memory.
-  const own = segs.filter((s) => s.speakerName === owner.name);
+  const own = segs.filter((s) => ownerNames.includes(s.speakerName));
   segs = [];
-  if (own.length === 0) return { error: `We didn't find ${owner.name} speaking in this meeting, so there's nothing to analyze. Nothing was kept.` };
+  if (own.length === 0) return { error: `We didn't find ${ownerNames.join(' or ')} speaking in this meeting, so there's nothing to analyze. Nothing was kept.` };
   const { segments: ownRedacted } = client?.redactionOn ? redact(own, asJson<string[]>(client.redactionTerms)) : { segments: own };
   const language = countLanguage(ownRedacted.map((s) => ({ ...s, speakerRole: isCoach ? 'coach' : 'coachee' })));
   const meeting = `${link.title}, ${day(o.scheduledAt)} ${time(o.scheduledAt)}`;

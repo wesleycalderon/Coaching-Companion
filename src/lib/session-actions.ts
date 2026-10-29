@@ -7,35 +7,23 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
 import { analyzeTranscript, type FollowUpProposal } from './ai/pipeline';
-import { extractPdfText } from './pdf-text';
 import { db } from './db';
 import type { SummaryItem } from './domain';
 import { asJson, eventTime, firstName } from './format';
 import { currentPersona } from './persona';
+import { readTranscriptFile } from './transcript-file';
 
 export interface FormState {
   error?: string;
   message?: string;
 }
 
-const MAX_BYTES = 10_000_000;
-
 export async function uploadTranscript(sessionId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const persona = currentPersona();
   if (persona.role !== 'coach') return { error: 'Only the coach can upload a transcript.' };
-  const file = formData.get('transcript');
-  if (!(file instanceof File) || file.size === 0) return { error: 'Choose a transcript file to upload.' };
-  if (file.size > MAX_BYTES) return { error: 'The file must be a .txt, .vtt, .json or .pdf transcript under 10 MB. Please choose a different file.' };
-  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  let content: string;
-  try {
-    content = isPdf ? await extractPdfText(new Uint8Array(await file.arrayBuffer())) : await file.text();
-  } catch (e) {
-    console.error('PDF text extraction failed', e);
-    return { error: "We couldn't read text from this PDF. If it's a scanned image, export the transcript as text or VTT instead." };
-  }
-  if (isPdf && !content.trim()) return { error: "This PDF has no text layer, so it may be a scanned image. Export the transcript as text or VTT instead." };
-  const result = await analyzeTranscript({ sessionId, actorId: persona.userId, source: 'upload', fileName: isPdf ? `${file.name}.txt` : file.name, content });
+  const file = await readTranscriptFile(formData.get('transcript'));
+  if ('error' in file) return { error: file.error };
+  const result = await analyzeTranscript({ sessionId, actorId: persona.userId, source: 'upload', fileName: file.fileName, content: file.content });
   if ('error' in result) return { error: result.error };
   revalidatePath('/coach/sessions');
   redirect(`/coach/sessions/${sessionId}/review`);

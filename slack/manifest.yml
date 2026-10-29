@@ -18,9 +18,13 @@ oauth_config:
     bot:
       - chat:write        # send recaps, nudges and check-ins
       - im:write          # open the direct message with the coachee
+      - im:history        # read your replies in the companion's DMs (AI coaching in a thread)
       - users:read        # look people up
       - users:read.email  # match coachees to Slack accounts by email
 settings:
+  event_subscriptions:
+    bot_events:
+      - message.im        # your messages to the companion: AI coaching conversations
   interactivity:
     is_enabled: true      # buttons and forms in the companion's messages
   org_deploy_enabled: false

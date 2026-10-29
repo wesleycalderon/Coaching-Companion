@@ -17,6 +17,7 @@ export interface CompanionInput {
   swapText?: string;
   midday?: string;
   endOfDay?: string;
+  conversationId?: string;
   useCalendar?: boolean;
 }
 
@@ -194,6 +195,28 @@ export async function respond(messageId: string, input: CompanionInput, actorUse
       }
       return { error: 'Choose what to do with this action.' };
     }
+
+    case 'meeting_feedback': {
+      if (input.choice !== 'coach') return { error: 'Choose what to do with this feedback.' };
+      if (prior.choice === 'coach' && prior.conversationId) return { ok: true };
+      const occurrenceId = (m.data as { occurrenceId?: string } | null)?.occurrenceId ?? '';
+      const { startFromFeedback } = await import('../coaching/conversations');
+      const started = await startFromFeedback(m.recipientId, occurrenceId);
+      if ('error' in started) return { error: started.error ?? 'We couldn’t start the conversation.' };
+      await save({ choice: 'coach', conversationId: started.id });
+      return { ok: true };
+    }
+
+    case 'live_notice': {
+      if (input.choice !== 'off') return { error: 'Choose what to do with this meeting.' };
+      const { turnOffLive } = await import('../live-meetings');
+      const result = await turnOffLive((m.data as { occurrenceId?: string } | null)?.occurrenceId ?? '', m.recipientId);
+      if ('error' in result) return { error: result.error ?? 'Something went wrong.' };
+      await save({ choice: 'off' });
+      await send({ recipientId: m.recipientId, kind: 'ack', text: 'Okay, the companion is off for this meeting. Nothing from it will be fetched.' });
+      return { ok: true };
+    }
+
 
     case 'meeting_review': {
       if (input.choice !== 'keep' && input.choice !== 'stop') return { error: 'Choose whether to keep the series linked.' };

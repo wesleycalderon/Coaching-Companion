@@ -41,6 +41,13 @@ const GROUPS: Array<{ title: string; screens: Array<[string, string, string, str
     ],
   },
   {
+    title: 'Live test: your own calendar, Zoom and Slack (docs/live-test.md)',
+    screens: [
+      ['LT', 'Setup checklist, sign in with Google, where each meeting stands', '/live', ''],
+      ['LT', 'Your start page: actions, agreement, link Zoom (after signing in)', '/me/start', ''],
+    ],
+  },
+  {
     title: 'Coaching guidance with BiTSy (not on the canvas yet: for design review)',
     screens: [
       ['CG', 'Choose an action to get coaching on', '/me/coaching', 'coachee'],

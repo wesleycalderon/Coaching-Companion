@@ -13,7 +13,7 @@ import { asJson, day, eventTime, firstName } from '../format';
 import { commitmentBadge } from '../queries';
 import type { WorkMeetingCheck } from '../work-meetings';
 import * as bitsy from './bitsy';
-import { coachById } from './coaches';
+import { coachById, DEFAULT_COACH, recommendCoach } from './coaches';
 import { sampleInsights, sampleReply } from './sample';
 
 const newId = (p: string) => `${p}-${randomUUID().slice(0, 12)}`;
@@ -21,7 +21,7 @@ const newId = (p: string) => `${p}-${randomUUID().slice(0, 12)}`;
 export const coachingProvider = () => (bitsy.bitsyConfigured() ? 'bitsy' : 'sample') as 'bitsy' | 'sample';
 
 /** What the AI coach is told about the coachee and the action. Shown to the coachee before sending. */
-export async function buildBrief(coacheeId: string, commitmentId: string | null) {
+export async function buildBrief(coacheeId: string, commitmentId: string | null, occurrenceId?: string | null) {
   const user = await db.user.findUniqueOrThrow({ where: { id: coacheeId }, include: { client: true } });
   const engagement = await db.engagement.findFirst({ where: { coacheeId }, include: { coach: true } });
   const lines: string[] = [];
@@ -48,11 +48,24 @@ export async function buildBrief(coacheeId: string, commitmentId: string | null)
       }
     }
   }
+  if (occurrenceId) {
+    // Talking through feedback from one meeting (from Slack): the feedback itself, and the actions it was checked against.
+    const o = await db.meetingOccurrence.findFirst({ where: { id: occurrenceId, captureStatus: 'captured', link: { coacheeId } }, include: { link: { include: { commitment: true } } } });
+    if (o?.check) {
+      const check = asJson<WorkMeetingCheck>(o.check);
+      if (!commitmentId) {
+        const actions = await db.commitment.findMany({ where: { approved: true, status: { in: ['not_started', 'tried', 'practiced'] }, session: { engagement: { coacheeId } } }, orderBy: { createdAt: 'desc' }, take: 5 });
+        if (actions.length) lines.push(`The actions I'm practicing:\n${actions.map((a) => `- ${a.ifThenText}`).join('\n')}`);
+      }
+      lines.push(`Feedback on my own words in "${o.link.title}" on ${day(o.scheduledAt)}: ${check.summary}`);
+      for (const e of check.evidence) lines.push(`I said (${e.time}): "${e.quote}"`);
+    }
+  }
   return lines.join('\n');
 }
 
-const firstMessage = (brief: string, opening: string) =>
-  `Some context first, from my coaching companion (a prototype that uses made-up example people):\n${brief}\n\n${opening}`;
+const firstMessage = (brief: string, opening: string, live = false) =>
+  `Some context first, from my coaching companion (a prototype${live ? '' : ' that uses made-up example people'}):\n${brief}\n\n${opening}`;
 
 async function coachReply(conversationId: string, provider: string, agentName: string, bitsyId: string | null, message: string) {
   if (provider === 'bitsy' && bitsyId) return bitsy.sendMessage(bitsyId, message);
@@ -60,18 +73,18 @@ async function coachReply(conversationId: string, provider: string, agentName: s
   return sampleReply(agentName, coachTurns);
 }
 
-export async function startCoaching(input: { coacheeId: string; commitmentId: string | null; agentName: string; opening: string }) {
+export async function startCoaching(input: { coacheeId: string; commitmentId: string | null; agentName: string; opening: string; occurrenceId?: string | null; slack?: { channel: string; threadTs: string } }) {
   const user = await db.user.findUniqueOrThrow({ where: { id: input.coacheeId } });
   const coach = coachById(input.agentName);
   const provider = coachingProvider();
-  const brief = await buildBrief(input.coacheeId, input.commitmentId);
+  const brief = await buildBrief(input.coacheeId, input.commitmentId, input.occurrenceId);
   const opening = input.opening || "I'd like help with this action.";
   let bitsyId: string | null = null;
   let reply: string;
   try {
     if (provider === 'bitsy') {
       bitsyId = (await bitsy.startConversation(coach.id, { source: 'coaching-companion-prototype', commitment: input.commitmentId })).id;
-      reply = await bitsy.sendMessage(bitsyId, firstMessage(brief, opening));
+      reply = await bitsy.sendMessage(bitsyId, firstMessage(brief, opening, user.liveClock));
     } else {
       reply = sampleReply(coach.id, 0);
     }
@@ -83,6 +96,7 @@ export async function startCoaching(input: { coacheeId: string; commitmentId: st
   await db.coachingConversation.create({
     data: {
       id, coacheeId: input.coacheeId, commitmentId: input.commitmentId, agentName: coach.id, provider, bitsyConversationId: bitsyId, status: 'active', startedAt: now,
+      slackChannel: input.slack?.channel ?? null, slackThreadTs: input.slack?.threadTs ?? null,
       turns: {
         create: [
           { id: newId('ct'), role: 'brief', text: brief, createdAt: now },
@@ -173,4 +187,26 @@ export async function decideProposal(id: string, coachId: string, approve: boole
     object: approve ? 'An action the coachee proposed after a coaching conversation, now one of their actions' : 'An action the coachee proposed after a coaching conversation', clientId: conv.coachee.clientId,
   });
   return { ok: true as const, coacheeId: conv.coacheeId };
+}
+
+/** "Talk it through with an AI coach" on a meeting's feedback. */
+export async function startFromFeedback(coacheeId: string, occurrenceId: string, slack?: { channel: string; threadTs: string }) {
+  const o = await db.meetingOccurrence.findFirst({ where: { id: occurrenceId, captureStatus: 'captured', link: { coacheeId } }, include: { link: { include: { commitment: true } } } });
+  if (!o) return { error: "We couldn't find the feedback for this meeting." };
+  const action = o.link.commitment ?? await db.commitment.findFirst({ where: { approved: true, status: { in: ['not_started', 'tried', 'practiced'] }, session: { engagement: { coacheeId } } }, orderBy: { createdAt: 'desc' } });
+  return startCoaching({
+    coacheeId, commitmentId: o.link.commitmentId, agentName: recommendCoach(action), occurrenceId, slack,
+    opening: `I'd like to talk through how I did in ${o.link.title}, and what to try next time.`,
+  });
+}
+
+/** A message to the companion in Slack that isn't a reply to anything: a general conversation. */
+export async function startGeneral(coacheeId: string, text: string, slack?: { channel: string; threadTs: string }) {
+  return startCoaching({ coacheeId, commitmentId: null, agentName: DEFAULT_COACH, opening: text, slack });
+}
+
+/** The latest AI coach reply in a conversation, for posting to Slack. */
+export async function latestCoachReply(id: string) {
+  const turn = await db.coachingTurn.findFirst({ where: { conversationId: id, role: 'coach' }, orderBy: { createdAt: 'desc' } });
+  return turn?.text ?? '';
 }

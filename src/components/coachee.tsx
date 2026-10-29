@@ -19,6 +19,7 @@ export async function CoacheeShell({ userId, current, children }: { userId: stri
     { href: '/me/coaching', label: 'Coaching guidance' },
     { href: '/me/settings', label: 'Companion settings' },
     { href: '/me/data', label: 'My data' },
+    ...(user.liveClock ? [{ href: '/me/start', label: 'Live test setup' }] : []),
   ];
   return (
     <div className="participant">

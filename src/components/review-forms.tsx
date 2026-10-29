@@ -8,6 +8,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { StatusBadge } from '@/ds/components';
 import { count } from '@/lib/format';
 import { saveReview, simulateZoomTranscript, uploadTranscript, type FormState } from '@/lib/session-actions';
+import { TRANSCRIPT_ACCEPT, TRANSCRIPT_TYPES } from '@/lib/transcript-types';
 
 export function Submit({ label, pendingLabel, className = 'ecb-btn-primary', name, value, ariaLabel }: { label: string; pendingLabel: string; className?: string; name?: string; value?: string; ariaLabel?: string }) {
   const { pending } = useFormStatus();
@@ -37,8 +38,8 @@ export function UploadForm({ sessionId, sampleMode, hasDraft }: { sessionId: str
     <form action={action} className="card card--pad card--stack">
       <h2 className="heading-xsmall heading-reset">Upload it yourself</h2>
       <div className="field">
-        <label className="ecb-form-label" htmlFor="transcript">Transcript (.txt, .vtt, .json or .pdf)</label>
-        <input id="transcript" name="transcript" type="file" accept=".txt,.vtt,.json,.pdf,text/plain,text/vtt,application/json,application/pdf" className="ecb-form-input" required />
+        <label className="ecb-form-label" htmlFor="transcript">Transcript ({TRANSCRIPT_TYPES})</label>
+        <input id="transcript" name="transcript" type="file" accept={TRANSCRIPT_ACCEPT} className="ecb-form-input" required />
       </div>
       <p className="fine-print">Text and PDF transcripts need a timestamp and speaker for each turn, like "[00:05] Daniel Okafor: How did it go?" or a "Daniel Okafor 00:05" heading above the words. Scanned PDFs without a text layer can't be read. Synthetic transcripts only in this prototype.</p>
       {sampleMode ? <p className="fine-print">No Anthropic API key is set, so only the seeded sample transcript (prisma/seed-data/transcripts/amara-session-2.txt) can be analyzed, using pre-written sample output.</p> : null}

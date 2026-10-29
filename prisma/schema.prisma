@@ -44,6 +44,8 @@ model Client {
   // Work-meeting capture (milestone 7): off | coachee_picked. In force, like the fields above.
   workMeetings       String    @default("off")
   clientRestrictions Json? // ClientRestrictions in src/lib/policy.ts
+  // Live test: email domains counted as internal for real calendar attendees (string[]).
+  internalDomains    Json?
   createdAt          DateTime  @default(now())
 
   users        User[]
@@ -71,6 +73,9 @@ model User {
   slackUserId       String? // set when the companion first finds the person in Slack
   // Companion setup: automatic (every meeting on after opt-in) | manual (only what they pick)
   captureMode       String    @default("automatic")
+  // Live test: a real person signed in with Google. Their meetings run on real time, not the
+  // prototype's fixed date.
+  liveClock         Boolean   @default(false)
   createdAt         DateTime  @default(now())
 
   client                Client?                @relation(fields: [clientId], references: [id])
@@ -478,6 +483,12 @@ model MeetingOccurrence {
   check         Json? // WorkMeetingCheck in src/lib/work-meetings.ts
   checkedAt     DateTime?
   aiProvider    String?
+  // Live test: the real Zoom meeting behind a Google Calendar event, and where fetching it stands.
+  zoomMeetingId String?
+  noticeSentAt  DateTime?
+  pollUntil     DateTime?
+  liveStatus    String? // waiting_recording | no_transcript | failed
+  liveNote      String?
 
   link MeetingLink @relation(fields: [linkId], references: [id])
 
@@ -517,6 +528,9 @@ model CoachingConversation {
   proposalStatus      String    @default("none") // none | proposed | approved | declined
   proposalDecidedAt   DateTime?
   createdCommitmentId String?
+  // Set when the conversation happens in a Slack thread.
+  slackChannel        String?
+  slackThreadTs       String?
 
   coachee    User           @relation("CoachingConversations", fields: [coacheeId], references: [id])
   commitment Commitment?    @relation(fields: [commitmentId], references: [id])
@@ -562,6 +576,11 @@ model AccountLink {
   status      String // linked | revoked
   linkedAt    DateTime
   revokedAt   DateTime?
+  // Live test only: real OAuth tokens. STUB: BTS Studio engineering (encrypt at rest).
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  meta           Json? // e.g. { zoomUserId, zoomDisplayName } or { email }
 
   user User @relation(fields: [userId], references: [id])
 
@@ -583,4 +602,13 @@ model CaptureRule {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+// Live test: one-time state for the Google and Zoom sign-ins (Zoom's callback arrives on the
+// tunnel's host, without this app's cookies, so the user is found by state).
+model OAuthState {
+  state     String   @id
+  provider  String // google | zoom
+  userId    String?
+  expiresAt DateTime
 }

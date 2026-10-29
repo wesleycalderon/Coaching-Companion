@@ -6,9 +6,10 @@ import { allow, BackLink, NotFoundCard, WrongRole } from '@/components/ui';
 import { RoleBadge, StatusBadge } from '@/ds/components';
 import { ATTEMPT_BADGE } from '@/lib/companion/view';
 import { db } from '@/lib/db';
-import { asJson, count, Count, dayTime, firstName } from '@/lib/format';
+import { asJson, count, Count, dayTime, firstName, wall } from '@/lib/format';
 import { keepSeriesAction, sendReviewNowAction, shareSeriesAction, simulateMeetingAction, startMeetingAction, stopLinkAction, uploadMeetingAction } from '@/lib/meeting-actions';
 import { isActive, OCCURRENCE_STATUS, refreshLinks, reviewDue, STOP_REASON, type Attendee, type WorkMeetingCheck } from '@/lib/work-meetings';
+import { TRANSCRIPT_ACCEPT, TRANSCRIPT_TYPES } from '@/lib/transcript-types';
 
 // Milestone 7. Not on the canvas yet: built from the participant patterns and flagged for design review.
 export default async function LinkedMeetingPage({ params, searchParams }: { params: { linkId: string }; searchParams: { done?: string } }) {
@@ -76,7 +77,7 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
             const q = check.counts.open_question + check.counts.curiosity_question;
             return (
               <div key={o.id} className="stack stack--tight text-small">
-                <span>{dayTime(o.scheduledAt)} · {count(q)} {q === 1 ? 'question' : 'questions'} · {ATTEMPT_BADGE[check.attempted].label}</span>
+                <span>{dayTime(wall(o.scheduledAt, link.coachee))} · {count(q)} {q === 1 ? 'question' : 'questions'} · {ATTEMPT_BADGE[check.attempted].label}</span>
                 <div className="bar-track" aria-hidden="true"><div className="bar-fill" style={{ width: `${Math.round((q / maxQ) * 100)}%` }} /></div>
               </div>
             );
@@ -96,7 +97,7 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
             return (
               <li key={o.id} className="stack">
                 <div className="row row--wrap row--tight">
-                  <span className="strong grow">{dayTime(o.scheduledAt)}</span>
+                  <span className="strong grow">{dayTime(wall(o.scheduledAt, link.coachee))}</span>
                   <StatusBadge tone={st.tone} label={st.label} />
                 </div>
                 {o.captureStatus === 'skipped_external' ? <p className="text-small">Someone from outside {short} was invited, so nothing was captured.</p> : null}
@@ -126,7 +127,7 @@ export default async function LinkedMeetingPage({ params, searchParams }: { para
                       <details>
                         <summary className="text-small">Or upload the meeting&apos;s transcript</summary>
                         <ActionForm action={uploadMeetingAction.bind(null, o.id)} submitLabel="Analyze my words" pendingLabel="Analyzing…" className="stack">
-                          <div className="field"><label className="ecb-form-label" htmlFor={`up-${o.id}`}>Transcript (.txt, .vtt or .json)</label><input id={`up-${o.id}`} name="transcript" type="file" accept=".txt,.vtt,.json,text/plain,text/vtt,application/json" className="ecb-form-input" required /></div>
+                          <div className="field"><label className="ecb-form-label" htmlFor={`up-${o.id}`}>Transcript ({TRANSCRIPT_TYPES})</label><input id={`up-${o.id}`} name="transcript" type="file" accept={TRANSCRIPT_ACCEPT} className="ecb-form-input" required /></div>
                           <p className="fine-print">Synthetic transcripts only. Everyone else&apos;s words are discarded before analysis.</p>
                         </ActionForm>
                       </details>

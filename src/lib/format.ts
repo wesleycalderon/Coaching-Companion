@@ -54,6 +54,20 @@ export const firstName = (name: string) => name.split(' ')[0];
 export const initials = (name: string) => name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 
 export const now = () => PROTOTYPE_NOW;
+
+/** The live-test user (signed in with Google) runs on real time; everyone else on the prototype's. */
+export const clockFor = (user: { liveClock?: boolean } | null | undefined) => (user?.liveClock ? new Date() : now());
+
+/**
+ * For display only. Seeded times are wall-clock values stored as UTC; real times for the live
+ * user are true UTC, so shift them into the person's time zone before formatting.
+ */
+export function wall(d: Date, user: { liveClock?: boolean; timeZone?: string } | null | undefined): Date {
+  if (!user?.liveClock || !user.timeZone || user.timeZone === 'UTC') return d;
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: user.timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  return new Date(Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')));
+}
 /**
  * Timestamp for something a person does in the prototype (uploading, approving). Prototype
  * time starts at PROTOTYPE_NOW and moves forward in real time from when the prototype was

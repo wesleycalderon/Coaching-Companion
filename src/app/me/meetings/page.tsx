@@ -3,9 +3,9 @@ import { ActionForm } from '@/components/admin-forms';
 import { CoacheeShell } from '@/components/coachee';
 import { allow, WrongRole } from '@/components/ui';
 import { StatusBadge } from '@/ds/components';
-import { calendarFor } from '@/lib/calendar';
+import { eventsFor } from '@/lib/calendar';
 import { db } from '@/lib/db';
-import { day, dayTime, firstName } from '@/lib/format';
+import { day, dayTime, firstName, wall } from '@/lib/format';
 import { linkMeetingAction } from '@/lib/meeting-actions';
 import { isActive, LINKABLE_STATUSES, refreshLinks, reviewDue, STOP_REASON } from '@/lib/work-meetings';
 
@@ -28,7 +28,7 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
   const finished = (l: (typeof links)[number]) => !isActive(l) || (l.scope === 'single' && !nextFor(l) && l.occurrences.length > 0);
   const active = links.filter((l) => !finished(l));
   const stopped = links.filter(finished);
-  const calendar = calendarFor(user);
+  const calendar = await eventsFor(user);
   const linkedIds = new Set(active.filter((l) => l.commitmentId).map((l) => l.calendarEventId));
   const free = calendar.filter((e) => !linkedIds.has(e.id));
   const latestCaptured = (l: (typeof links)[number]) => [...l.occurrences].reverse().find((o) => o.captureStatus === 'captured');
@@ -61,7 +61,7 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
                   <select id="lm-meeting" name="meeting" className="ecb-form-select">
                     {free.map((e) => (
                       <option key={e.id} value={e.id}>
-                        {e.title} · {e.recurring ? e.cadence : dayTime(e.nextAt)}{e.attendees.some((a) => !a.internal) ? ` · includes someone outside ${short}, won't be captured` : ''}
+                        {e.title} · {e.recurring ? e.cadence : dayTime(wall(e.nextAt, user))}{e.attendees.some((a) => !a.internal) ? ` · includes someone outside ${short}, won't be captured` : ''}
                       </option>
                     ))}
                   </select>
@@ -101,7 +101,7 @@ export default async function LinkedMeetingsPage({ searchParams }: { searchParam
                   </div>
                   <span className="text-small">{l.commitment ? `Focused on your action: ${l.commitment.ifThenText}` : 'Checked against all your active actions'}</span>
                   <span className="fine-print">
-                    {next ? `Next: ${dayTime(next.scheduledAt)}.` : l.scope === 'single' ? 'This meeting has passed.' : 'No upcoming meeting in your calendar.'}
+                    {next ? `Next: ${dayTime(wall(next.scheduledAt, user))}.` : l.scope === 'single' ? 'This meeting has passed.' : 'No upcoming meeting in your calendar.'}
                     {last ? ` Latest feedback: ${day(last.scheduledAt)}.` : ''}
                   </span>
                 </li>

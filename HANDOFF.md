@@ -21,7 +21,7 @@ These are private claude.ai artifacts. If you can't open them, ask Wesley to exp
 - Work-meeting consent is still per occurrence for everyone else: every occurrence shows a notice, capture pauses for anyone who hasn't agreed (including new attendees), and any occurrence with an external participant is not captured.
 - In work meetings, only the coachee's own words are analyzed. Everyone else's words are discarded right after processing and never stored. Feedback goes to the coachee, who chooses whether to share it with their coach.
 - Work-meeting capture is off by default for clients in companion mode or with sensitive-data policies.
-- v1 capture: post-session transcripts arrive automatically from a BTS-controlled Zoom account (webhook, built in milestone 3 with a local simulator). Manual upload of .txt, .vtt, .json or .pdf transcripts is the fallback.
+- v1 capture: post-session transcripts arrive automatically from a BTS-controlled Zoom account (webhook, built in milestone 3 with a local simulator). Manual upload of .txt, .md, .vtt, .json or .pdf transcripts is the fallback.
 - Analysis model: the **Leadership Roadmap** (see below), plus GROW. ICF markers for coach practice feedback only.
 - Coach approves every summary and commitment before the coachee sees it.
 - Manager views of coach feedback are developmental and never used for work assignment.

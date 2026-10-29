@@ -163,7 +163,171 @@ async function postError(messageId: string, error: string) {
   if (m?.slackChannel) await slackApp().client.chat.postMessage({ channel: m.slackChannel, text: error });
 }
 
+// ── AI coaching in a thread ──────────────────────────────────────────────────────────
+
+/** Slack mrkdwn from the AI coach's Markdown, split to fit Slack's 3,000-character sections. */
+function coachSections(text: string): Block[] {
+  const mrkdwn = text.replace(/\*\*(.+?)\*\*/g, '*$1*').replace(/^#{1,6}\s+(.+)$/gm, '*$1*').replace(/^\s*[-*]\s+/gm, '• ');
+  const out: Block[] = [];
+  for (let rest = mrkdwn || 'The AI coach sent an empty reply.'; rest.length; ) {
+    let cut = rest.length <= 2900 ? rest.length : rest.lastIndexOf('\n', 2900);
+    if (cut < 1000) cut = 2900;
+    out.push({ type: 'section', text: md(rest.slice(0, cut)) });
+    rest = rest.slice(cut).trimStart();
+  }
+  return out;
+}
+
+async function coachBlocks(conversationId: string, text: string): Promise<Block[]> {
+  const conv = await db.coachingConversation.findUniqueOrThrow({ where: { id: conversationId } });
+  const { coachById } = await import('../coaching/coaches');
+  const label = `*BiTSy AI coach* · ${coachById(conv.agentName).name} · AI, not a person${conv.provider === 'sample' ? ' · sample replies' : ''}`;
+  const value = JSON.stringify({ v: conv.id });
+  return [
+    { type: 'context', elements: [md(label)] },
+    ...coachSections(text),
+    { type: 'context', elements: [md('Reply in this thread to keep talking.')] },
+    { type: 'actions', elements: [
+      { type: 'button', action_id: 'cc:conv:propose', text: plain('Suggest this as an action'), value },
+      { type: 'button', action_id: 'cc:conv:end', text: plain('End conversation'), value },
+    ] },
+  ];
+}
+
+async function postCoachReply(conversationId: string, channel: string, threadTs: string, text: string, replaceTs?: string) {
+  const client = slackApp().client;
+  const blocks = (await coachBlocks(conversationId, text)) as never;
+  const fallback = text.slice(0, 2900) || 'AI coach reply';
+  if (replaceTs) await client.chat.update({ channel, ts: replaceTs, text: fallback, blocks });
+  else await client.chat.postMessage({ channel, thread_ts: threadTs, text: fallback, blocks });
+}
+
+/** After "Talk it through": the conversation lives in the feedback message's thread. */
+export async function openCoachingThread(messageId: string) {
+  const m = await db.companionMessage.findUniqueOrThrow({ where: { id: messageId } });
+  const conversationId = (m.response as { conversationId?: string } | null)?.conversationId;
+  if (!conversationId || !m.slackChannel || !m.slackTs) return;
+  const conv = await db.coachingConversation.findUniqueOrThrow({ where: { id: conversationId } });
+  if (conv.slackThreadTs) return; // already open in this thread
+  await db.coachingConversation.update({ where: { id: conv.id }, data: { slackChannel: m.slackChannel, slackThreadTs: m.slackTs } });
+  const { latestCoachReply } = await import('../coaching/conversations');
+  await postCoachReply(conv.id, m.slackChannel, m.slackTs, await latestCoachReply(conv.id));
+}
+
+/** Who a Slack user is in the prototype. With SLACK_TEST_USER_ID every coachee is you; prefer the live-test person. */
+async function coacheeForSlackUser(slackUserId: string) {
+  if (process.env.SLACK_TEST_USER_ID) {
+    if (slackUserId !== process.env.SLACK_TEST_USER_ID) return null;
+    return db.user.findFirst({ where: { role: 'coachee', liveClock: true, status: 'active' }, orderBy: { createdAt: 'desc' } });
+  }
+  return db.user.findFirst({ where: { role: 'coachee', slackUserId } });
+}
+
+export async function handleDirectMessage(evt: { user?: string; text?: string; ts: string; thread_ts?: string; channel: string }) {
+  const client = slackApp().client;
+  const text = (evt.text ?? '').trim();
+  if (!evt.user || !text) return;
+  const { sendTurn, startGeneral } = await import('../coaching/conversations');
+  if (evt.thread_ts && evt.thread_ts !== evt.ts) {
+    const conv = await db.coachingConversation.findFirst({ where: { slackChannel: evt.channel, slackThreadTs: evt.thread_ts } });
+    if (!conv) return; // a reply to a message that isn't a conversation: nothing to do
+    const owner = await coacheeForSlackUser(evt.user);
+    if (owner && owner.id !== conv.coacheeId && !process.env.SLACK_TEST_USER_ID) return;
+    if (conv.status !== 'active') {
+      await client.chat.postMessage({ channel: evt.channel, thread_ts: evt.thread_ts, text: 'This conversation has ended. Send me a new message to start another one.' });
+      return;
+    }
+    const placeholder = await client.chat.postMessage({ channel: evt.channel, thread_ts: evt.thread_ts, text: 'The AI coach is thinking…', blocks: [{ type: 'context', elements: [md('_The BiTSy AI coach is thinking…_')] }] as never });
+    const result = await sendTurn(conv.id, conv.coacheeId, text);
+    if ('error' in result) {
+      await client.chat.update({ channel: evt.channel, ts: placeholder.ts!, text: result.error ?? 'Something went wrong.', blocks: [] as never });
+      return;
+    }
+    const { latestCoachReply } = await import('../coaching/conversations');
+    await postCoachReply(conv.id, evt.channel, evt.thread_ts, await latestCoachReply(conv.id), placeholder.ts);
+    return;
+  }
+  // A new message: a general conversation in its own thread.
+  const owner = await coacheeForSlackUser(evt.user);
+  if (!owner) {
+    await client.chat.postMessage({ channel: evt.channel, thread_ts: evt.ts, text: 'Sign in to the prototype with Google first (Live test page), then message me here.' });
+    return;
+  }
+  const placeholder = await client.chat.postMessage({ channel: evt.channel, thread_ts: evt.ts, text: 'Starting a conversation with an AI coach…', blocks: [{ type: 'context', elements: [md('_Starting a conversation with a BiTSy AI coach…_')] }] as never });
+  const started = await startGeneral(owner.id, text, { channel: evt.channel, threadTs: evt.ts });
+  if ('error' in started) {
+    await client.chat.update({ channel: evt.channel, ts: placeholder.ts!, text: started.error ?? 'Something went wrong.', blocks: [] as never });
+    return;
+  }
+  const { latestCoachReply } = await import('../coaching/conversations');
+  await postCoachReply(started.id!, evt.channel, evt.ts, await latestCoachReply(started.id!), placeholder.ts);
+}
+
 function registerHandlers(app: App) {
+  // Direct messages to the companion (needs the im:history scope and the message.im event).
+  app.message(async ({ message }) => {
+    const msg = message as { subtype?: string; bot_id?: string; channel_type?: string; user?: string; text?: string; ts: string; thread_ts?: string; channel: string };
+    if (msg.subtype || msg.bot_id || msg.channel_type !== 'im') return;
+    try {
+      await handleDirectMessage(msg);
+    } catch (e) {
+      console.error('[slack] coaching message failed', e);
+      await slackApp().client.chat.postMessage({ channel: msg.channel, thread_ts: msg.thread_ts ?? msg.ts, text: 'Something went wrong talking to the AI coach. Try again in a moment.' });
+    }
+  });
+
+  app.action('cc:conv:end', async ({ ack, action, client }) => {
+    await ack();
+    if (action.type !== 'button' || !action.value) return;
+    const { v } = JSON.parse(action.value) as { v: string };
+    const conv = await db.coachingConversation.findUnique({ where: { id: v } });
+    if (!conv?.slackChannel || !conv.slackThreadTs) return;
+    const { endCoaching } = await import('../coaching/conversations');
+    await endCoaching(conv.id, conv.coacheeId);
+    const ended = await db.coachingConversation.findUniqueOrThrow({ where: { id: conv.id } });
+    const ins = (ended.insights ?? { keyTopics: [], insights: [] }) as { keyTopics?: string[]; insights?: string[] };
+    const lines = [...(ins.insights ?? []).map((i) => `• ${i}`)];
+    await client.chat.postMessage({
+      channel: conv.slackChannel, thread_ts: conv.slackThreadTs, text: 'Conversation ended',
+      blocks: [
+        { type: 'context', elements: [md('*BiTSy AI coach* · AI, not a person')] },
+        { type: 'section', text: md(`*Conversation ended.*${lines.length ? `\nWhat came out of it (AI summary):\n${lines.join('\n')}` : ''}`) },
+        { type: 'context', elements: [md('Private to you unless you share it from the app.')] },
+      ] as never,
+    });
+  });
+
+  app.action('cc:conv:propose', async ({ ack, action, body, client }) => {
+    await ack();
+    if (action.type !== 'button' || !action.value || !('trigger_id' in body)) return;
+    const { v } = JSON.parse(action.value) as { v: string };
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: {
+        type: 'modal', callback_id: 'cc_propose', private_metadata: JSON.stringify({ v }), title: plain('Suggest an action'), submit: plain('Send to my coach'), close: plain('Cancel'),
+        blocks: [
+          { type: 'section', text: md('Write the action in your own words. Your coach approves it before it becomes one of your actions. The AI never adds actions itself.') },
+          { type: 'input', block_id: 'text', label: plain('Your action'), element: { type: 'plain_text_input', action_id: 'value', multiline: true, placeholder: plain("e.g. In Monday's team meeting, I'll ask a question first") } },
+        ],
+      } as never,
+    });
+  });
+
+  app.view('cc_propose', async ({ ack, view, client }) => {
+    const { v } = JSON.parse(view.private_metadata) as { v: string };
+    const text = (view.state.values as Record<string, Record<string, { value?: string | null }>>).text?.value?.value?.trim() ?? '';
+    const conv = await db.coachingConversation.findUnique({ where: { id: v }, include: { coachee: true } });
+    if (!conv) return ack({ response_action: 'errors', errors: { text: "We couldn't find this conversation." } });
+    const { proposeAction } = await import('../coaching/conversations');
+    const result = await proposeAction(conv.id, conv.coacheeId, text);
+    if ('error' in result) return ack({ response_action: 'errors', errors: { text: result.error ?? 'Something went wrong.' } });
+    await ack();
+    const engagement = await db.engagement.findFirst({ where: { coacheeId: conv.coacheeId }, include: { coach: true } });
+    if (conv.slackChannel && conv.slackThreadTs) {
+      await client.chat.postMessage({ channel: conv.slackChannel, thread_ts: conv.slackThreadTs, text: `Sent to ${engagement?.coach.name ?? 'your coach'} for approval: "${text}"` });
+    }
+  });
+
   app.action('cc:link', async ({ ack }) => { await ack(); });
 
   app.action(/^cc:choice:\d+$/, async ({ ack, action, body, client }) => {
@@ -173,6 +337,7 @@ function registerHandlers(app: App) {
     const result = await respond(m, { choice: c });
     if ('error' in result) return postError(m, result.error);
     await refresh(m);
+    if (c === 'coach') await openCoachingThread(m);
     // "Tried it" asks for a reflection straight away.
     if (c === 'tried' && 'trigger_id' in body) {
       const msg = await db.companionMessage.findUniqueOrThrow({ where: { id: m } });

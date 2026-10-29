@@ -1,12 +1,15 @@
 import { RoleBadge } from '@/ds/components';
 import { ROLE_LABEL } from '@/lib/domain';
-import { PERSONAS, type Persona } from '@/lib/persona';
+import { livePersona, PERSONAS, type Persona } from '@/lib/persona';
+import { liveTestOn } from '@/lib/integrations/google';
 import { switchPersona } from '@/lib/actions';
 import { db } from '@/lib/db';
 
 /** App-shell header with the prototype role switcher. STUB: BTS Studio engineering (auth). */
 export async function AppHeader({ persona }: { persona: Persona }) {
   const user = await db.user.findUnique({ where: { id: persona.userId }, include: { client: true } });
+  const live = liveTestOn() ? await db.user.findMany({ where: { liveClock: true }, orderBy: { createdAt: 'asc' } }) : [];
+  const options = [...live.map((u) => ({ ...livePersona(u.id), label: `You · ${u.name} (signed in with Google)` })), ...PERSONAS];
   const who = persona.role === 'bts_admin' ? null : persona.role === 'client_admin' ? user?.client?.name : user?.name;
   return (
     <header className="ecb-app-shell-header app-header">
@@ -17,9 +20,11 @@ export async function AppHeader({ persona }: { persona: Persona }) {
       <form action={switchPersona} className="persona-switcher">
         <label className="visually-hidden" htmlFor="persona">View the prototype as</label>
         <select key={persona.id} id="persona" name="persona" className="ecb-form-select" defaultValue={persona.id}>
-          {PERSONAS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          {options.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
         <button className="ecb-btn-secondary" type="submit">Switch view</button>
+        {/* Live test (docs/live-test.md): always reachable, so the setup checklist is easy to find. */}
+        <a className="ecb-btn-ghost" href={persona.id.startsWith('live:') ? '/me/start' : '/live'}>Live test</a>
       </form>
     </header>
   );

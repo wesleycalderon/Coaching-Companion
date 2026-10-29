@@ -246,6 +246,48 @@ Open `/` for the screen index: every canvas artboard, its route, and which view 
 - No coach heads-up message in Slack yet (planned as optional; not built).
 - Halden (Elena's client) has companion mode and work meetings off, so Elena's manual setting shows mostly policy reasons.
 
+## Live test: real calendar, Zoom, Slack feedback and AI coaching (after companion setup)
+
+Test the companion as yourself (`docs/live-test.md`, page `/live`):
+1. Sign in with Google (personal Gmail, read-only calendar).
+2. Write test actions, agree, and link your own Zoom (per-person OAuth through a tunnel).
+3. Choose meetings from your real calendar in Companion settings.
+
+Then, for each meeting:
+- A Slack heads-up arrives 10 minutes before.
+- After the meeting, Zoom's meeting transcript is fetched automatically, with no recording needed. If there isn't one, a cloud recording's transcript is used instead.
+- Feedback on your own words arrives in Slack.
+- "Talk it through with an AI coach" opens a BiTSy conversation in the message's thread. Replying in the thread continues it; a new DM starts a general conversation.
+
+### Checked
+Tested against the in-app fake Google and Zoom (`LIVE_FAKE`), with the real Slack test workspace, live BiTSy and live AI analysis:
+- **Solo meeting:** notice, then transcript, then feedback in Slack.
+- **Meeting with a guest:** feedback straight away, with Zoom's notice as everyone's agreement and only the owner's words analyzed.
+- **Transcript sources:** a meeting transcript with no recording (including the twice-encoded meeting UUID), a cloud recording only (the fallback), and neither (it keeps waiting, with a note saying what to check).
+- **AI coaching in Slack:** "Talk it through" posts the AI coach in the thread, and a thread reply gets a BiTSy reply.
+- **"Turn off for this one":** turns the meeting off, and it stays off after the calendar re-syncs.
+- **Pages:** `/live` and `/me/start` at 375 px.
+
+Not yet tried with your real Google, Zoom and Slack accounts. That needs the setup in `docs/live-test.md`.
+
+### Stubbed or not built
+- **Tokens:** stored unencrypted in SQLite.
+- **Attendee agreement:** Zoom's notice that the meeting is being transcribed stands in for each person agreeing to the companion itself.
+- **Meeting transcript endpoint:** documented mostly in Zoom's developer forum, so it may change; the cloud-recording fallback stays.
+- **Transcript fetching:** polling instead of Zoom webhooks.
+- **Test actions:** recorded as approved by the coach.
+- **Times:** the live user's meetings run on real time; their coaching data stays on prototype dates.
+- **Not built:** Teams or Outlook.
+- **Before others can use it:** Zoom Marketplace review and Google verification.
+
+## Transcript uploads: Markdown and PDF everywhere
+- Both uploads (a coach's session, and a person's own work meeting) accept .txt, .md, .vtt, .json and .pdf, through one reader (`src/lib/transcript-file.ts`). Work-meeting uploads used to refuse PDFs.
+- Markdown formatting is removed before parsing: headings, bold and italics, bullets, quotes, links, tables and front matter.
+- Turns can also be written "Name (00:05): words" or "Name [00:05]: words".
+- Timestamps can also be a bracketed number with a unit, such as "Name (5.06m): words" (decimal minutes, from some meeting tools' PDF exports), "[90s]" or "(1.5h)".
+- A title or intro before the first speaker turn is skipped in every text format, instead of failing.
+- Checked: sample Markdown files in five styles, plain text with a title, and a real PDF through the PDF reader and parser. Both upload forms render the new file types.
+
 ## Live API check (Sonnet 5.5, `ANTHROPIC_MODEL` in `.env`)
 
 - Amara's session 2 through the Zoom simulator: all five tasks (speaker roles, summary, actions, follow-up, practice feedback) returned valid output; no quote failed the transcript check, nothing was dropped, one client term was redacted. The uncertain "hand Kai the rota" action came back flagged for coach confirmation.

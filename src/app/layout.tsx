@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { AppHeader } from '@/components/AppHeader';
-import { currentPersona } from '@/lib/persona';
+import { redirect } from 'next/navigation';
+import { db } from '@/lib/db';
+import { currentPersona, LIVE_PREFIX } from '@/lib/persona';
 import './app.css';
 
 export const metadata: Metadata = {
@@ -9,8 +11,10 @@ export const metadata: Metadata = {
   description: 'Coaching Session Companion prototype. Synthetic data only.',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
   const persona = currentPersona();
+  // Live test: the signed-in person was removed (for example by resetting the demo data).
+  if (persona.id.startsWith(LIVE_PREFIX) && !(await db.user.findUnique({ where: { id: persona.userId }, select: { id: true } }))) redirect('/api/auth/signed-out');
   return (
     <html lang="en">
       <head>

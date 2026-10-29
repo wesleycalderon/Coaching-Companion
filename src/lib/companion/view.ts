@@ -4,7 +4,7 @@
 import type { CompanionMessage } from '@prisma/client';
 import { db } from '../db';
 import { summaryItemLabel, type SummaryItem } from '../domain';
-import { asJson, day, firstName, time, weekdayLong } from '../format';
+import { asJson, day, firstName, time, wall, weekdayLong } from '../format';
 import { commitmentBadge, type Badge } from '../queries';
 import type { WorkMeetingCheck } from '../work-meetings';
 import { retentionSentence } from './text';
@@ -19,7 +19,9 @@ export const ATTEMPT_BADGE: Record<WorkMeetingCheck['attempted'], Badge> = {
 export type MessageKind =
   | 'welcome' | 'consent_request' | 'pre_session_prompt' | 'recap' | 'nudge' | 'check_in'
   | 'set_aside_reason' | 'set_aside_plan' | 'reflection_prompt' | 'ack'
-  | 'meeting_feedback' | 'meeting_review';
+  | 'meeting_feedback' | 'meeting_review'
+  // Live test: real meetings (src/lib/live-meetings.ts)
+  | 'live_notice' | 'live_status';
 
 export interface Choice {
   value: string;
@@ -196,15 +198,34 @@ export async function buildView(m: CompanionMessage): Promise<MessageView> {
       return {
         ...base,
         meta: `${time(m.sentAt)} · Only you see this`,
-        title: `${o.link.title}, ${day(o.scheduledAt)}`,
+        title: `${o.link.title}, ${day(wall(o.scheduledAt, recipient))}`,
         badge: ATTEMPT_BADGE[check.attempted],
         paragraphs: [check.summary],
         items: check.evidence.map((e) => ({ label: `You said, ${e.time}`, text: `"${e.quote}"` })),
         facts: [o.link.commitment ? `Your action: ${o.link.commitment.ifThenText}` : 'Checked against your active actions', `Open or curiosity questions you asked: ${curious}`],
         link: { label: 'See this series ↗', href: `/me/meetings/${o.linkId}` },
+        // Talking it through starts a BiTSy AI coach conversation (in Slack: in this message's thread).
+        choices: choose([{ value: 'coach', label: r.choice === 'coach' ? 'AI coach conversation started' : 'Talk it through with an AI coach', primary: true }]),
         note: `Only your own words were analyzed. Nothing anyone else said was kept. ${coachFirst} sees this only if you share the series.`,
       };
     }
+    case 'live_notice': {
+      const o = await db.meetingOccurrence.findUnique({ where: { id: data.occurrenceId ?? '' }, include: { link: true } });
+      if (!o) return { ...base, paragraphs: [m.text] };
+      const others = asJson<Array<{ name: string }>>(o.attendees).length;
+      return {
+        ...base,
+        title: `${o.link.title} starts at ${time(wall(o.scheduledAt, recipient))}`,
+        paragraphs: [
+          'The companion is on for this meeting. Turn on AI Companion (or the meeting transcript) in Zoom, and I’ll send you feedback on your own words afterwards. No recording needed.',
+          others ? 'Zoom tells everyone when the meeting is being transcribed. If you’d like them to know what it’s for, paste this into the chat:\n>I’m transcribing for an AI coaching companion. It analyzes only my own words, for my development, and keeps nothing anyone else says.' : 'Nobody else is invited.',
+        ],
+        facts: [`Zoom meeting ${o.zoomMeetingId}`, others ? `${others} other ${others === 1 ? 'person' : 'people'} invited` : 'Just you'],
+        choices: choose([{ value: 'off', label: r.choice === 'off' ? 'Turned off for this one' : 'Turn off for this one' }]),
+      };
+    }
+    case 'live_status':
+      return { ...base, paragraphs: [m.text] };
     case 'meeting_review': {
       const l = await db.meetingLink.findUnique({ where: { id: data.linkId ?? '' }, include: { commitment: true } });
       if (!l) return { ...base, paragraphs: [m.text] };

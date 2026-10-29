@@ -15,6 +15,7 @@ import { currentPersona } from './persona';
 import type { FormState } from './session-actions';
 import { setRule } from './companion-setup';
 import { answerNotice, confirmSeries, isActive, linkMeeting, processOccurrence, showNotice, stopLink, type Attendee } from './work-meetings';
+import { readTranscriptFile } from './transcript-file';
 
 const text = (fd: FormData, name: string) => String(fd.get(name) ?? '').trim();
 
@@ -138,11 +139,9 @@ export async function simulateMeetingAction(occurrenceId: string, _prev: FormSta
 export async function uploadMeetingAction(occurrenceId: string, _prev: FormState, fd: FormData): Promise<FormState> {
   const o = await ownOccurrence(occurrenceId);
   if (!o) return { error: "We couldn't find this meeting." };
-  const file = fd.get('transcript');
-  if (!(file instanceof File) || file.size === 0) return { error: 'Choose a transcript file.' };
-  if (file.size > 2_000_000) return { error: 'The file is too large.' };
-  if (file.name.toLowerCase().endsWith('.pdf')) return { error: 'Upload a .txt, .vtt or .json transcript for work meetings.' };
-  const r = await processOccurrence({ occurrenceId: o.id, content: await file.text(), fileName: file.name, actorId: o.link.coacheeId });
+  const file = await readTranscriptFile(fd.get('transcript'));
+  if ('error' in file) return { error: file.error };
+  const r = await processOccurrence({ occurrenceId: o.id, content: file.content, fileName: file.fileName, actorId: o.link.coacheeId });
   refresh(o.linkId);
   if ('error' in r) return { error: r.error };
   return { message: 'Feedback is ready. Only your own words were analyzed; the rest of the file was discarded.' };

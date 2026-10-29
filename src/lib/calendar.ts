@@ -16,6 +16,12 @@ export interface CalendarEvent {
   nextAt: Date;
   minutes: number;
   attendees: CalendarAttendee[];
+  /** Live test (Google Calendar): the real starts in the window, instead of a weekly rule. */
+  starts?: Date[];
+  /** Live test: the Zoom meeting id from the event's link, if any. */
+  zoomMeetingId?: string | null;
+  /** Live test: the event isn't on Zoom, so it can't be captured. */
+  noZoom?: boolean;
 }
 
 const DAY = 86_400_000;
@@ -56,10 +62,22 @@ export function calendarFor(user: { id: string; name: string }): CalendarEvent[]
 
 /** Starts of a series' occurrences from `from` (inclusive) until `until`, weekly. */
 export function seriesStarts(event: CalendarEvent, from: Date, until: Date): Date[] {
+  if (event.starts) return event.starts.filter((t) => t >= from && t <= until);
   if (!event.recurring) return event.nextAt >= from && event.nextAt <= until ? [event.nextAt] : [];
   const out: Date[] = [];
   let t = event.nextAt.getTime();
   while (t - 7 * DAY >= from.getTime()) t -= 7 * DAY;
   for (; t <= until.getTime(); t += 7 * DAY) if (t >= from.getTime()) out.push(new Date(t));
   return out;
+}
+
+/**
+ * A person's meetings: the live-test user's real Google Calendar, everyone else's synthetic one.
+ * Falls back to an empty list if Google can't be reached (the settings screen says so).
+ */
+export async function eventsFor(user: { id: string; name: string; liveClock?: boolean }): Promise<CalendarEvent[]> {
+  if (!user.liveClock) return calendarFor(user);
+  const { googleEvents } = await import('./integrations/google');
+  const r = await googleEvents(user.id);
+  return 'error' in r ? [] : r.events;
 }

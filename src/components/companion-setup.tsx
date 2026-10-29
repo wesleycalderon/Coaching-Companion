@@ -6,12 +6,19 @@ import { ConfirmButton } from '@/components/client';
 import { StatusBadge } from '@/ds/components';
 import {
   linked, linkRecord, PROVIDER_LABEL, providerPurpose, providersFor,
-  type PersonState, type SeriesRow, type UpcomingRow,
+  type PersonState, type Provider, type SeriesRow, type UpcomingRow,
 } from '@/lib/companion-setup';
 import { day, dayTime } from '@/lib/format';
 import { agreeAction, linkAccountAction, saveModeAction, saveSeriesAction, stopUsingAction, toggleOneAction, unlinkAccountAction } from '@/lib/setup-actions';
 
 type Variant = 'coach' | 'coachee';
+
+const LIVE_PURPOSE: Record<Provider, string> = {
+  slack: 'Your Slack test workspace. Feedback arrives here, and you can talk it through with an AI coach in the thread.',
+  calendar: 'Your Google Calendar, read-only. Lists your meetings so you can choose which the companion joins.',
+  zoom: 'Your own Zoom account. After a meeting that’s on, the companion fetches the meeting’s transcript from Zoom (no recording needed) and keeps only your own words.',
+  teams: '',
+};
 const card = (v: Variant) => (v === 'coach' ? 'card card--pad card--stack' : 'p-card stack');
 
 /** What agreeing means, and the agreement's state. */
@@ -56,10 +63,12 @@ export function AgreementSection({ st, variant, coachName, heading = 'Your agree
 export function AccountsSection({ st, variant, heading = 'Linked accounts' }: { st: PersonState; variant: Variant; heading?: string }) {
   const role = st.user.role;
   const short = st.user.client?.name.split(' ')[0] ?? 'Your organization';
-  const providers = providersFor(role);
+  // Live test: the signed-in person links their real Google Calendar and their own Zoom.
+  const live = st.user.liveClock;
+  const providers: Provider[] = live ? ['slack', 'calendar', 'zoom'] : providersFor(role);
   // Coachees need one chat app (Slack or Teams) and their calendar.
-  const needed = role === 'coach' ? providers.length : 2;
-  const done = role === 'coach' ? providers.filter((p) => linked(st, p)).length
+  const needed = role === 'coach' || live ? providers.length : 2;
+  const done = role === 'coach' || live ? providers.filter((p) => linked(st, p)).length
     : (linked(st, 'slack') || linked(st, 'teams') ? 1 : 0) + (linked(st, 'calendar') ? 1 : 0);
   return (
     <section aria-labelledby="ac-head" className={card(variant)}>
@@ -67,7 +76,7 @@ export function AccountsSection({ st, variant, heading = 'Linked accounts' }: { 
         <h2 id="ac-head" className="heading-small heading-reset grow">{heading}</h2>
         <StatusBadge tone={done === needed ? 'success' : 'warning'} label={done === needed ? 'All set' : `${done} of ${needed} linked`} />
       </div>
-      {role !== 'coach' ? <p className="text-body">Link the chat app you use at work, Slack or Teams, and your calendar. {short}&apos;s admin installs them first.</p> : null}
+      {role !== 'coach' && !live ? <p className="text-body">Link the chat app you use at work, Slack or Teams, and your calendar. {short}&apos;s admin installs them first.</p> : null}
       <div className="stack ruled">
         {providers.map((p) => {
           const available = role === 'coach' || st.installed.includes(p);
@@ -77,7 +86,7 @@ export function AccountsSection({ st, variant, heading = 'Linked accounts' }: { 
             <div key={p} className="row row--wrap text-body">
               <span className="basis-320">
                 <span className="strong">{PROVIDER_LABEL[p]}</span><br />
-                <span className="text-subtle">{providerPurpose(role, p, short)}</span>
+                <span className="text-subtle">{live ? LIVE_PURPOSE[p] : providerPurpose(role, p, short)}</span>
                 {record ? <><br /><span className="fine-print">{record.displayName}</span></> : null}
               </span>
               {works ? <StatusBadge tone="success" label="Linked" />
@@ -85,6 +94,8 @@ export function AccountsSection({ st, variant, heading = 'Linked accounts' }: { 
                 : !available ? <StatusBadge tone="neutral" label={`Not installed by ${short}`} /> : <StatusBadge tone="neutral" label="Not linked" />}
               {record ? (
                 <ActionButton action={unlinkAccountAction.bind(null, p)} label="Unlink" ariaLabel={`Unlink ${PROVIDER_LABEL[p]}`} pendingLabel="Unlinking…" className="ecb-btn-ghost" />
+              ) : available && live && (p === 'zoom' || p === 'calendar') ? (
+                <a className="ecb-btn-secondary" href={p === 'zoom' ? '/api/auth/zoom/start' : '/api/auth/google/start'}>{p === 'zoom' ? 'Link Zoom' : 'Sign in with Google again'}</a>
               ) : available ? (
                 <ActionButton action={linkAccountAction.bind(null, p)} label={`Link ${PROVIDER_LABEL[p]}`} pendingLabel="Linking…" className="ecb-btn-secondary" />
               ) : null}
@@ -92,8 +103,8 @@ export function AccountsSection({ st, variant, heading = 'Linked accounts' }: { 
           );
         })}
       </div>
-      {role !== 'coach' && providers.some((p) => !st.installed.includes(p)) ? <p className="fine-print">Something missing? Ask {short}&apos;s admin to install it.</p> : null}
-      <p className="fine-print">Linking is simulated in the prototype. No accounts are contacted.</p>
+      {role !== 'coach' && !live && providers.some((p) => !st.installed.includes(p)) ? <p className="fine-print">Something missing? Ask {short}&apos;s admin to install it.</p> : null}
+      <p className="fine-print">{live ? 'Live test: Google Calendar and Zoom are your real accounts. Slack messages go to your Slack test workspace.' : 'Linking is simulated in the prototype. No accounts are contacted.'}</p>
     </section>
   );
 }
@@ -154,13 +165,13 @@ export function MeetingsSection({ st, variant, series, upcoming, meetingsNote }:
         {upcoming.length === 0 ? <p className="text-body">Nothing in the next two weeks.</p> : (
           <ul className="list ruled">
             {upcoming.map((r) => {
-              const label = `${r.title}, ${day(r.at)}`;
+              const label = `${r.title}, ${day(r.displayAt ?? r.at)}`;
               const choice = r.myOn ? 'off' : 'on';
               return (
                 <li key={r.key} className="row row--wrap text-body">
                   <span className="basis-320">
                     {r.href ? <a className="strong" href={r.href}>{r.title}</a> : <span className="strong">{r.title}</span>}<br />
-                    <span className="text-subtle">{dayTime(r.at)}{r.kind === 'session' ? ' · Coaching session' : ''}</span>
+                    <span className="text-subtle">{dayTime(r.displayAt ?? r.at)}{r.kind === 'session' ? ' · Coaching session' : ''}</span>
                     {!r.on && r.reason ? <><br /><span className="fine-print">{r.reason}</span></> : null}
                   </span>
                   <StatusBadge tone={r.on ? 'success' : 'neutral'} label={r.on ? 'On' : 'Off'} />
